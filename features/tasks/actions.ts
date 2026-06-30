@@ -1,0 +1,453 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { searchAll } from "@/features/tasks/queries";
+import { parseTaskInput } from "@/features/tasks/parse";
+import type { Bucket, Priority, Status, Workspace } from "@/features/tasks/constants";
+import type { Task } from "@/features/tasks/types";
+
+/** Udleder hvilken kolonne en opgave hører til ud fra dens deadline. */
+function deriveBucket(deadline: Date | null): Bucket {
+  if (!deadline) return "today";
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor(
+    (deadline.getTime() - startOfToday.getTime()) / 86_400_000,
+  );
+  if (diffDays <= 0) return "today";
+  if (diffDays <= 7) return "week";
+  return "later";
+}
+
+/** Global søgning (kaldes fra topbarens søgefelt). */
+export async function searchAction(query: string) {
+  return searchAll(query);
+}
+
+/**
+ * Server Actions for opgave- & projektsystemet.
+ * Alt kører på serveren. RLS sikrer, at man kun rører sine egne data.
+ * Hver ændring logges i task_activity, og færdige opgaver gemmes i task_history.
+ */
+
+export type ActionState =
+  | { ok?: boolean; error?: string; task?: Task }
+  | undefined;
+
+const NOT_READY =
+  "Databasen er ikke klar endnu. Kør migration 0003 i Supabase først.";
+
+async function getAuth() {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  return { supabase, userId: user.id };
+}
+
+/** Skriver en linje i aktivitetsloggen (best effort – fejler aldrig hårdt). */
+async function logActivity(
+  auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
+  taskId: string | null,
+  type: string,
+  detail: Record<string, unknown>,
+) {
+  try {
+    await auth.supabase.from("task_activity").insert({
+      user_id: auth.userId,
+      task_id: taskId,
+      type,
+      detail,
+    });
+  } catch {
+    // aktivitetslog er ikke kritisk
+  }
+}
+
+// ───────────────────────────── Opret opgave ─────────────────────────────
+export async function createTask(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+
+  const rawTitle = String(formData.get("title") ?? "").trim();
+  if (!rawTitle) return { error: "Skriv en titel til opgaven." };
+
+  // Smart-tilføj: forstå dansk dato/tid + kategori ud fra teksten.
+  const parsed = parseTaskInput(rawTitle);
+
+  // Manuelle valg vinder over parseren. "auto"/tom = lad parseren bestemme.
+  const pick = (key: string) => {
+    const v = formData.get(key);
+    return v && v !== "auto" && v !== "" ? String(v) : null;
+  };
+
+  const title = parsed.title || rawTitle;
+  const workspace =
+    (pick("workspace") as Workspace) ?? parsed.workspace ?? "private";
+  const priority =
+    (pick("priority") as Priority) ?? parsed.priority ?? "can_wait";
+  const category = pick("category") ?? parsed.categoryId;
+
+  // Deadline: manuel dato (hvis valgt) ellers parserens udregnede tidspunkt.
+  const manualDeadline = pick("deadline");
+  const deadline = manualDeadline
+    ? new Date(manualDeadline).toISOString()
+    : (parsed.deadline?.toISOString() ?? null);
+
+  // Bucket: manuel ellers udledt af deadline.
+  const bucket =
+    (pick("bucket") as Bucket) ?? deriveBucket(parsed.deadline);
+
+  const description = (formData.get("description") as string) || null;
+
+  try {
+    const { data, error } = await auth.supabase
+      .from("tasks")
+      .insert({
+        user_id: auth.userId,
+        title,
+        description,
+        workspace,
+        bucket,
+        priority,
+        category,
+        deadline,
+        reminder_at: deadline, // påmindelse = samme tidspunkt som deadline
+        status: "not_started",
+        position: Date.now(),
+      })
+      .select("*")
+      .single();
+
+    if (error) return { error: error.message };
+    await logActivity(auth, data.id, "created", { title });
+    revalidatePath("/opgaver");
+    revalidatePath("/");
+    revalidatePath("/storgaard-biler");
+    revalidatePath("/privat");
+    revalidatePath("/markedsfoering");
+    return { ok: true, task: data as Task };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/**
+ * Lyn-opret en opgave fra en "Hurtig handling"-knap og returnér dens id, så
+ * UI'et bagefter kan åbne editoren (detalje-visningen) for den nye opgave.
+ */
+export async function quickCreateTask(params: {
+  title: string;
+  workspace?: Workspace;
+  priority?: Priority;
+  category?: string | null;
+  note?: string | null;
+  bucket?: Bucket;
+}): Promise<{ ok?: boolean; id?: string; error?: string }> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+
+  const title = params.title.trim();
+  if (!title) return { error: "Opgaven mangler en titel." };
+
+  try {
+    const { data, error } = await auth.supabase
+      .from("tasks")
+      .insert({
+        user_id: auth.userId,
+        title,
+        workspace: params.workspace ?? "work",
+        bucket: params.bucket ?? "today",
+        priority: params.priority ?? "can_wait",
+        category: params.category ?? null,
+        notes: params.note ?? null,
+        status: "not_started",
+        position: Date.now(),
+      })
+      .select("id")
+      .single();
+
+    if (error) return { error: error.message };
+    await logActivity(auth, data.id, "created", { title });
+    revalidatePath("/opgaver");
+    revalidatePath("/");
+    revalidatePath("/storgaard-biler");
+    revalidatePath("/privat");
+    return { ok: true, id: data.id as string };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+// ──────────────────────── Flyt opgave (drag & drop) ─────────────────────
+export async function moveTask(id: string, bucket: Bucket, position: number) {
+  const auth = await getAuth();
+  if (!auth) return;
+  try {
+    await auth.supabase
+      .from("tasks")
+      .update({ bucket, position })
+      .eq("id", id);
+    await logActivity(auth, id, "moved", { bucket });
+    revalidatePath("/opgaver");
+  } catch {
+    // ignoreres – UI viser allerede optimistisk flytning
+  }
+}
+
+// ───────────────────────────── Skift status ─────────────────────────────
+export async function setTaskStatus(id: string, status: Status) {
+  const auth = await getAuth();
+  if (!auth) return;
+  const isDone = status === "done";
+  try {
+    const { data } = await auth.supabase
+      .from("tasks")
+      .update({ status, completed_at: isDone ? new Date().toISOString() : null })
+      .eq("id", id)
+      .select("title")
+      .single();
+
+    if (isDone && data) {
+      await auth.supabase.from("task_history").insert({
+        user_id: auth.userId,
+        task_id: id,
+        title: data.title,
+        action: "completed",
+      });
+    }
+    await logActivity(
+      auth,
+      id,
+      status === "done" ? "completed" : status === "archived" ? "archived" : "edited",
+      { status },
+    );
+    revalidatePath("/opgaver");
+  } catch {
+    // ignoreres
+  }
+}
+
+// ─────────────────────────────── Slet opgave ────────────────────────────
+export async function deleteTask(id: string) {
+  const auth = await getAuth();
+  if (!auth) return;
+  try {
+    await auth.supabase.from("tasks").delete().eq("id", id);
+    revalidatePath("/opgaver");
+  } catch {
+    // ignoreres
+  }
+}
+
+// ──────────────────── Opret note (Second Brain) ─────────────────────────
+export async function createNote(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+
+  const body = String(formData.get("body") ?? "").trim();
+  if (!body) return { error: "Skriv lidt indhold til noten." };
+
+  const title = (formData.get("title") as string)?.trim() || null;
+  const workspace = (formData.get("workspace") as Workspace) || "private";
+
+  try {
+    const { error } = await auth.supabase.from("notes").insert({
+      user_id: auth.userId,
+      title,
+      body,
+      workspace,
+      pinned: false,
+    });
+    if (error) return { error: error.message };
+    revalidatePath("/opgaver");
+    return { ok: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/** Fastgør / frigør en note. */
+export async function toggleNotePinned(id: string, pinned: boolean) {
+  const auth = await getAuth();
+  if (!auth) return;
+  try {
+    await auth.supabase.from("notes").update({ pinned }).eq("id", id);
+    revalidatePath("/opgaver");
+  } catch {
+    // ignoreres
+  }
+}
+
+export async function deleteNote(id: string) {
+  const auth = await getAuth();
+  if (!auth) return;
+  try {
+    await auth.supabase.from("notes").delete().eq("id", id);
+    revalidatePath("/opgaver");
+  } catch {
+    // ignoreres
+  }
+}
+
+// ───────────────────────────── Opret projekt ────────────────────────────
+export async function createProject(
+  _state: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { error: "Skriv et navn til projektet." };
+
+  const workspace = (formData.get("workspace") as Workspace) || "private";
+  const description = (formData.get("description") as string) || null;
+  const deadline = (formData.get("deadline") as string) || null;
+
+  try {
+    const { error } = await auth.supabase.from("projects").insert({
+      user_id: auth.userId,
+      name,
+      description,
+      workspace,
+      status: "active",
+      deadline: deadline || null,
+    });
+    if (error) return { error: error.message };
+    revalidatePath("/opgaver");
+    return { ok: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/**
+ * Opdaterer ALLE redigerbare felter på en opgave (fra den fulde editor).
+ * Tomme/uændrede felter kan sendes med – vi sætter kun det, der gives.
+ */
+export async function updateTask(
+  id: string,
+  fields: {
+    title?: string;
+    description?: string | null;
+    workspace?: Workspace;
+    priority?: Priority;
+    status?: Status;
+    bucket?: Bucket;
+    category?: string | null;
+    deadline?: string | null; // ISO eller null
+    notes?: string | null;
+  },
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+
+  const update: Record<string, unknown> = {};
+  if (fields.title !== undefined) {
+    const t = fields.title.trim();
+    if (!t) return { error: "Opgaven skal have et emne." };
+    update.title = t;
+  }
+  if (fields.description !== undefined)
+    update.description = fields.description?.trim() || null;
+  if (fields.workspace !== undefined) update.workspace = fields.workspace;
+  if (fields.priority !== undefined) update.priority = fields.priority;
+  if (fields.bucket !== undefined) update.bucket = fields.bucket;
+  if (fields.category !== undefined) update.category = fields.category || null;
+  if (fields.notes !== undefined) update.notes = fields.notes?.trim() || null;
+  if (fields.deadline !== undefined) {
+    update.deadline = fields.deadline || null;
+    update.reminder_at = fields.deadline || null;
+  }
+  if (fields.status !== undefined) {
+    update.status = fields.status;
+    update.completed_at =
+      fields.status === "done" ? new Date().toISOString() : null;
+  }
+
+  try {
+    const { error } = await auth.supabase
+      .from("tasks")
+      .update(update)
+      .eq("id", id)
+      .eq("user_id", auth.userId);
+    if (error) return { error: error.message };
+
+    if (fields.status === "done") {
+      await auth.supabase.from("task_history").insert({
+        user_id: auth.userId,
+        task_id: id,
+        title: (update.title as string) ?? undefined,
+        action: "completed",
+      });
+    }
+    await logActivity(auth, id, "edited", {
+      title: update.title as string | undefined,
+    });
+    revalidatePath("/opgaver");
+    revalidatePath("/");
+    revalidatePath("/storgaard-biler");
+    revalidatePath("/privat");
+    revalidatePath("/markedsfoering");
+    return { ok: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/** Gemmer noten på en opgave (notes-feltet findes allerede). */
+export async function updateTaskNotes(
+  id: string,
+  notes: string,
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+  try {
+    const { error } = await auth.supabase
+      .from("tasks")
+      .update({ notes: notes.trim() || null })
+      .eq("id", id)
+      .eq("user_id", auth.userId);
+    if (error) return { error: error.message };
+    revalidatePath("/opgaver");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/** Gemmer noten på et projekt. */
+export async function updateProjectNotes(
+  id: string,
+  notes: string,
+): Promise<ActionState> {
+  const auth = await getAuth();
+  if (!auth) return { error: NOT_READY };
+  try {
+    const { error } = await auth.supabase
+      .from("projects")
+      .update({ notes: notes.trim() || null })
+      .eq("id", id)
+      .eq("user_id", auth.userId);
+    if (error) return { error: error.message };
+    revalidatePath("/opgaver");
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}

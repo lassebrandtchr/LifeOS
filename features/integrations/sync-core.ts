@@ -1,0 +1,372 @@
+import "server-only";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { listCalendars, listEventsFromCalendar } from "@/lib/google/calendar";
+import { listGmailMessages } from "@/lib/google/gmail";
+import { listOutlookMessages, listOutlookEvents } from "@/lib/microsoft/graph";
+import {
+  listNotionDatabases,
+  queryNotionDatabase,
+  searchNotion,
+} from "@/lib/notion/client";
+import { parseTaskInput } from "@/features/tasks/parse";
+import {
+  mapRowToTask,
+  deriveBucket,
+  workspaceForDatabase,
+} from "@/features/integrations/notion-tasks";
+
+/**
+ * KERNE-SYNK – ren logik der henter data fra en udbyder og skriver til LifeOS.
+ *
+ * Hver funktion tager en EKSPLICIT supabase-klient + userId + et gyldigt token.
+ * Derfor kan PRÆCIS samme kode bruges af:
+ *   • de manuelle "Synk nu"-knapper (cookie-klient, den indloggede bruger), og
+ *   • det automatiske cron-job hver 30. min (service-role admin-klient).
+ *
+ * Funktionerne kalder IKKE revalidatePath – det gør kalderen (route/action).
+ */
+
+export type SyncResult = {
+  source: string;
+  ok: boolean;
+  count?: number;
+  error?: string;
+};
+
+async function markSynced(
+  supabase: SupabaseClient,
+  userId: string,
+  connectorId: string,
+) {
+  await supabase
+    .from("integrations")
+    .update({ status: "connected", last_synced_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("connector_id", connectorId);
+}
+
+/**
+ * Udleder en prioritet ud fra deadline, når teksten ikke selv afslører den,
+ * så ikke ALT lander som "kan vente".
+ */
+function derivePriority(deadlineISO: string | null, status: string): string {
+  if (status === "done" || status === "archived") return "low";
+  if (!deadlineISO) return "can_wait";
+  const deadline = new Date(deadlineISO).getTime();
+  if (Number.isNaN(deadline)) return "can_wait";
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const diffDays = Math.floor((deadline - startOfToday.getTime()) / 86_400_000);
+  if (diffDays <= 0) return "urgent";
+  if (diffDays <= 2) return "important";
+  if (diffDays <= 7) return "can_wait";
+  return "low";
+}
+
+// ───────────────────────────── Google Kalender ──────────────────────────
+export async function syncGoogleCalendarCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const now = new Date();
+    const from = new Date(now.getTime() - 14 * 86_400_000).toISOString();
+    const to = new Date(now.getTime() + 120 * 86_400_000).toISOString();
+
+    const calendars = await listCalendars(token);
+    if (calendars.length === 0) {
+      return { source: "google_calendar", ok: false, error: "Kunne ikke læse kalendere." };
+    }
+
+    const lists = await Promise.all(
+      calendars.map((c) => listEventsFromCalendar(token, c, from, to)),
+    );
+    const seen = new Set<string>();
+    const rows: Record<string, unknown>[] = [];
+    for (const list of lists) {
+      for (const e of list) {
+        if (!e.startISO || !e.id || seen.has(e.id)) continue;
+        seen.add(e.id);
+        rows.push({
+          user_id: userId,
+          source: "google_calendar",
+          external_id: e.id,
+          title: e.summary,
+          description: e.description,
+          location: e.location,
+          starts_at: e.startISO,
+          ends_at: e.endISO,
+          all_day: e.allDay,
+          workspace: parseTaskInput(e.summary).workspace ?? "private",
+        });
+      }
+    }
+
+    if (rows.length === 0) {
+      return { source: "google_calendar", ok: true, count: 0 };
+    }
+    await supabase
+      .from("calendar_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source", "google_calendar")
+      .gte("starts_at", from)
+      .lte("starts_at", to);
+    await supabase.from("calendar_events").insert(rows);
+    await markSynced(supabase, userId, "google_calendar");
+    return { source: "google_calendar", ok: true, count: rows.length };
+  } catch {
+    return { source: "google_calendar", ok: false, error: "Synk fejlede." };
+  }
+}
+
+// ───────────────────────────────── Gmail ────────────────────────────────
+export async function syncGmailCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const messages = await listGmailMessages(token, 25);
+    if (messages.length === 0) return { source: "gmail", ok: true, count: 0 };
+
+    const rows = messages.map((m) => ({
+      user_id: userId,
+      source: "gmail",
+      external_id: m.id,
+      subject: m.subject,
+      snippet: m.snippet,
+      from_addr: m.from,
+      is_read: m.isRead,
+      received_at: m.receivedISO,
+      // Gmail = privat verden (Storgaard-mail kommer via Outlook).
+      workspace: "private",
+    }));
+
+    await supabase.from("emails").delete().eq("user_id", userId).eq("source", "gmail");
+    await supabase.from("emails").insert(rows);
+    await markSynced(supabase, userId, "gmail");
+    return { source: "gmail", ok: true, count: rows.length };
+  } catch {
+    return { source: "gmail", ok: false, error: "Synk fejlede." };
+  }
+}
+
+// ──────────────────────────── Outlook Kalender ──────────────────────────
+export async function syncOutlookCalendarCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const now = new Date();
+    const from = new Date(now.getTime() - 14 * 86_400_000).toISOString();
+    const to = new Date(now.getTime() + 120 * 86_400_000).toISOString();
+
+    const events = await listOutlookEvents(token, from, to);
+    const rows = events
+      .filter((e) => e.startISO && e.id)
+      .map((e) => ({
+        user_id: userId,
+        source: "outlook",
+        external_id: e.id,
+        title: e.subject,
+        description: e.description,
+        location: e.location,
+        starts_at: e.startISO,
+        ends_at: e.endISO,
+        all_day: e.allDay,
+        // Outlook-kalenderen = Storgaard = arbejde.
+        workspace: "work",
+      }));
+
+    if (rows.length === 0) return { source: "outlook_calendar", ok: true, count: 0 };
+    await supabase
+      .from("calendar_events")
+      .delete()
+      .eq("user_id", userId)
+      .eq("source", "outlook")
+      .gte("starts_at", from)
+      .lte("starts_at", to);
+    await supabase.from("calendar_events").insert(rows);
+    await markSynced(supabase, userId, "outlook_calendar");
+    return { source: "outlook_calendar", ok: true, count: rows.length };
+  } catch {
+    return { source: "outlook_calendar", ok: false, error: "Synk fejlede." };
+  }
+}
+
+// ────────────────────────────── Outlook Mail ────────────────────────────
+export async function syncOutlookMailCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const messages = await listOutlookMessages(token, 30);
+    if (messages.length === 0) return { source: "outlook_mail", ok: true, count: 0 };
+
+    const rows = messages.map((m) => ({
+      user_id: userId,
+      source: "outlook",
+      external_id: m.id,
+      subject: m.subject,
+      snippet: m.snippet,
+      from_addr: m.from,
+      is_read: m.isRead,
+      received_at: m.receivedISO,
+      // Outlook-mail = Storgaard = arbejde.
+      workspace: "work",
+    }));
+
+    await supabase.from("emails").delete().eq("user_id", userId).eq("source", "outlook");
+    await supabase.from("emails").insert(rows);
+    await markSynced(supabase, userId, "outlook_mail");
+    return { source: "outlook_mail", ok: true, count: rows.length };
+  } catch {
+    return { source: "outlook_mail", ok: false, error: "Synk fejlede." };
+  }
+}
+
+// ─────────────────────────────── Notion-sider ───────────────────────────
+export async function syncNotionPagesCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const pages = await searchNotion(token, 50);
+    await supabase.from("notion_items").delete().eq("user_id", userId);
+    if (pages.length > 0) {
+      const rows = pages.map((p) => ({
+        user_id: userId,
+        external_id: p.id,
+        title: p.title,
+        type: p.type,
+        url: p.url,
+        snippet: p.snippet,
+        edited_at: p.editedISO,
+        workspace: "work",
+      }));
+      await supabase.from("notion_items").insert(rows);
+    }
+    await markSynced(supabase, userId, "notion");
+    return { source: "notion_pages", ok: true, count: pages.length };
+  } catch {
+    return { source: "notion_pages", ok: false, error: "Synk fejlede." };
+  }
+}
+
+// ──────────────────────────── Notion-opgaver ────────────────────────────
+export async function syncNotionTasksCore(
+  supabase: SupabaseClient,
+  userId: string,
+  token: string,
+): Promise<SyncResult> {
+  try {
+    const databases = await listNotionDatabases(token);
+    const relevant = databases
+      .map((db) => ({ ...db, workspace: workspaceForDatabase(db.title) }))
+      .filter((db): db is typeof db & { workspace: "work" | "private" } =>
+        db.workspace !== null,
+      );
+
+    if (relevant.length === 0) {
+      return { source: "notion_tasks", ok: false, error: "Ingen kendte databaser." };
+    }
+
+    type Mapped = {
+      notionId: string;
+      title: string;
+      deadline: string | null;
+      status: string;
+      done: boolean;
+      category: string | null;
+      workArea: string | null;
+      workspace: "work" | "private";
+      priority: string;
+    };
+    const mapped: Mapped[] = [];
+    for (const db of relevant) {
+      const rows = await queryNotionDatabase(token, db.id);
+      for (const row of rows) {
+        const t = mapRowToTask(row);
+        if (!t) continue;
+        const parsed = parseTaskInput(t.title);
+        const workspace = parsed.workspace ?? db.workspace;
+        const category = t.category ?? parsed.categoryId;
+        const priority = parsed.priority ?? derivePriority(t.deadline, t.status);
+        mapped.push({ ...t, workspace, category, priority });
+      }
+    }
+
+    if (mapped.length === 0) return { source: "notion_tasks", ok: true, count: 0 };
+
+    const { data: existing } = await supabase
+      .from("tasks")
+      .select("id, notion_id")
+      .eq("user_id", userId)
+      .not("notion_id", "is", null);
+
+    const byNotionId = new Map<string, string>();
+    for (const r of existing ?? []) {
+      if (r.notion_id) byNotionId.set(r.notion_id as string, r.id as string);
+    }
+
+    const toInsert: Record<string, unknown>[] = [];
+    let updated = 0;
+    for (const t of mapped) {
+      const completed_at =
+        t.done || t.status === "done" ? new Date().toISOString() : null;
+      const tags = t.workArea ? [t.workArea] : [];
+      const existingId = byNotionId.get(t.notionId);
+
+      if (existingId) {
+        await supabase
+          .from("tasks")
+          .update({
+            title: t.title,
+            deadline: t.deadline,
+            status: t.status,
+            completed_at,
+            category: t.category,
+            workspace: t.workspace,
+            priority: t.priority,
+          })
+          .eq("id", existingId)
+          .eq("user_id", userId);
+        updated++;
+      } else {
+        toInsert.push({
+          user_id: userId,
+          title: t.title,
+          workspace: t.workspace,
+          source: "notion",
+          notion_id: t.notionId,
+          deadline: t.deadline,
+          reminder_at: t.deadline,
+          status: t.status,
+          completed_at,
+          category: t.category,
+          tags,
+          bucket: deriveBucket(t.deadline),
+          priority: t.priority,
+          position: Date.now(),
+        });
+      }
+    }
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from("tasks").insert(toInsert);
+      if (error) return { source: "notion_tasks", ok: false, error: error.message };
+    }
+
+    await markSynced(supabase, userId, "notion");
+    return { source: "notion_tasks", ok: true, count: toInsert.length + updated };
+  } catch {
+    return { source: "notion_tasks", ok: false, error: "Synk fejlede." };
+  }
+}

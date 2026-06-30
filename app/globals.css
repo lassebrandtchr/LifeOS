@@ -1,26 +1,294 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/*
+  LifeOS – Design System (Tailwind CSS v4, CSS-first)
+  --------------------------------------------------
+  Alle farver defineres ÉT sted som tokens (CSS-variabler).
+  Light mode står i :root, dark mode i .dark.
+  @theme inline kobler tokens til Tailwind-utilities (fx bg-background, text-primary).
+  Skift af tema sker via klassen "dark" på <html> (styres af next-themes).
+*/
+
+/* Dark mode aktiveres via klassen .dark (sat af next-themes) */
+@custom-variant dark (&:is(.dark *));
+
+/* ----------------------------- LIGHT MODE ----------------------------- */
+/* Frisk, lys grøn palet med liquid glass – luftig og premium. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Hjørneradius: kort er store og bløde, knapper/inputs lidt mindre */
+  --radius: 0.875rem; /* 14px – knapper, inputs */
+  --radius-card: 1.375rem; /* 22px – kort (bærende element) */
+
+  /* Flader */
+  --background: #eef6ee; /* mild, lys grøn-hvid */
+  --foreground: #0d2018; /* dyb skov-grøn tekst */
+  --card: #ffffff;
+  --card-foreground: #0d2018;
+  --popover: #ffffff;
+  --popover-foreground: #0d2018;
+
+  /* Brand / primær – frisk, levende grøn */
+  --primary: #16a34a;
+  --primary-foreground: #ffffff;
+
+  /* Sekundære/dæmpede flader (grønne nuancer) */
+  --secondary: #dcefdd;
+  --secondary-foreground: #0d2018;
+  --muted: #e7f2e6;
+  --muted-foreground: #5b7167;
+  --accent: #c9e9cd;
+  --accent-foreground: #0d2018;
+
+  /* Status */
+  --destructive: #dc4040;
+  --destructive-foreground: #ffffff;
+  --success: #16a34a;
+  --warning: #d9952b;
+
+  /* Kanter, felter, fokusring */
+  --border: #d3e7d2;
+  --input: #d3e7d2;
+  --ring: #16a34a;
+
+  /* Workspace-accenter */
+  --brand: #16a34a; /* Samlet overblik – frisk grøn */
+  --accent-private: #16a34a; /* Privat (grøn) */
+  --accent-work: #c98a1a; /* Storgaard Biler (varm rav/guld) */
+
+  /* Glød (lysende grøn kant) */
+  --glow: rgba(22, 163, 74, 0.35);
+
+  /* Liquid glass – gennemsigtige flader med blur */
+  --glass-bg: rgba(255, 255, 255, 0.58);
+  --glass-bg-strong: rgba(255, 255, 255, 0.74);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-tint: rgba(22, 163, 74, 0.05);
+
+  /* Menu i venstre side – lidt dybere grøn gradient end baggrunden */
+  --sidebar-grad: linear-gradient(180deg, #dcefdd 0%, #c4e2c8 55%, #b6dabb 100%);
+  --sidebar-border: #b3d6b8;
 }
 
+/* ------------------------------ DARK MODE ----------------------------- */
+/* Kølig slate-grafit på selve fladen, så den grønne menu står tydeligt frem.
+   Grøn bevares som brand-/accentfarve (knapper, aktive elementer, badges). */
+.dark {
+  --background: #0f161e; /* kølig mørk slate-grafit */
+  --foreground: #e7ecf4;
+  --card: #18212d; /* slate-flade */
+  --card-foreground: #e7ecf4;
+  --popover: #18212d;
+  --popover-foreground: #e7ecf4;
+
+  --primary: #4ae693; /* lysende grøn glød (brand) */
+  --primary-foreground: #06150c;
+
+  --secondary: #212c3a;
+  --secondary-foreground: #e7ecf4;
+  --muted: #1d2632;
+  --muted-foreground: #9aa7ba;
+  --accent: #283648;
+  --accent-foreground: #e7ecf4;
+
+  --destructive: #e5484d;
+  --destructive-foreground: #ffffff;
+  --success: #4ae693;
+  --warning: #e6b15a;
+
+  --border: #2d3a4b;
+  --input: #2d3a4b;
+  --ring: #4ae693;
+
+  --brand: #4ae693;
+  --accent-private: #4ae693;
+  --accent-work: #e6bd6a;
+
+  /* Glød (lysende grøn i mørk mode) */
+  --glow: rgba(74, 230, 147, 0.5);
+
+  /* Liquid glass – kølig slate med diskret grønt skær */
+  --glass-bg: rgba(31, 42, 56, 0.5);
+  --glass-bg-strong: rgba(24, 33, 45, 0.82);
+  --glass-border: rgba(150, 172, 205, 0.14);
+  --glass-tint: rgba(74, 230, 147, 0.06);
+
+  /* Menu i venstre side – beholder sin MØRKE grønne gradient (kontrast til slate) */
+  --sidebar-grad: linear-gradient(168deg, #0c2417 0%, #061710 55%, #0a2014 100%);
+  --sidebar-border: #15351f;
+}
+
+/* --------------- Kobl tokens til Tailwind-utility-klasser -------------- */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-brand: var(--brand);
+  --color-accent-private: var(--accent-private);
+  --color-accent-work: var(--accent-work);
+
+  /* Radius-skala til rounded-* utilities */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-card: var(--radius-card);
+
+  /* Skrifttyper (Geist sættes i layout.tsx) */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ------------------------------ BASIS-LAG ----------------------------- */
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100dvh;
+    /* Subtil, blød baggrundsgradient med frisk grønt skær */
+    background-image:
+      radial-gradient(1200px 600px at 100% -10%, rgba(22, 163, 74, 0.12), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(34, 197, 94, 0.08), transparent 55%);
+    background-attachment: fixed;
+  }
+
+  /* Køligt slate-skær i mørk mode med et diskret grønt brand-strejf */
+  .dark body {
+    background-image:
+      radial-gradient(900px 500px at 80% -15%, rgba(74, 230, 147, 0.1), transparent 60%),
+      radial-gradient(800px 500px at -10% 110%, rgba(94, 124, 165, 0.12), transparent 55%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Bløde, diskrete skygger – aldrig hårde kanter */
+@utility shadow-soft {
+  box-shadow:
+    0 1px 2px rgba(15, 31, 51, 0.04),
+    0 8px 24px rgba(15, 31, 51, 0.06);
+}
+
+@utility shadow-soft-lg {
+  box-shadow:
+    0 2px 4px rgba(15, 31, 51, 0.05),
+    0 16px 40px rgba(15, 31, 51, 0.08);
+}
+
+/* Elektrisk blå glød – bruges på logo, primær-knapper og aktive elementer */
+@utility shadow-glow {
+  box-shadow:
+    0 0 0 1px var(--glow),
+    0 8px 28px -6px var(--glow);
+}
+
+/* Glasmorphism – brugt MEGET diskret (topbar, mobilmenu) for at skabe dybde */
+@utility glass {
+  background-color: color-mix(in oklab, var(--background) 72%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+}
+
+/* Liquid glass – bærende kort-flade: gennemsigtig, blurret, med blød grøn tint */
+@utility glass-card {
+  background-color: var(--glass-bg);
+  background-image: linear-gradient(135deg, var(--glass-tint), transparent 60%);
+  backdrop-filter: saturate(170%) blur(18px);
+  -webkit-backdrop-filter: saturate(170%) blur(18px);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    0 8px 32px -8px rgba(13, 32, 24, 0.18);
+}
+
+/* Stærkere variant til paneler der skal være mere læsbare (drawer, popovers) */
+@utility glass-card-strong {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: saturate(170%) blur(22px);
+  -webkit-backdrop-filter: saturate(170%) blur(22px);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    0 16px 48px -12px rgba(13, 32, 24, 0.28);
+}
+
+/* Venstre-menu – grøn gradient-flade (mørk i dark mode, dyb grøn i light mode) */
+.app-sidebar {
+  background-image: var(--sidebar-grad);
+  border-color: var(--sidebar-border);
+}
+
+/* Tekst-link med blød understregnings-animation (gror fra venstre ved hover). */
+@utility link-anim {
+  position: relative;
+  transition: color 200ms ease-out;
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -2px;
+    height: 1.5px;
+    width: 100%;
+    background-color: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 200ms ease-out;
+  }
+  &:hover::after {
+    transform: scaleX(1);
+  }
+}
+
+/* ------------------------ TILGÆNGELIGHED / YDELSE -------------------- */
+/* Respektér brugere, der har slået bevægelse fra: stop ambient + animationer. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ambient-bg {
+    display: none;
+  }
+}
+
+/* Diskret, moderne scrollbar (premium-detalje) */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent)
+      transparent;
+  }
 }

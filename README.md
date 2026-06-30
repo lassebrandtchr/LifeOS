@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LifeOS
 
-## Getting Started
+Dit personlige AI-styresystem – privatliv og Storgaard Biler samlet i ét premium-interface.
 
-First, run the development server:
+> **Status:** Fase 2 (teknisk fundament) er bygget. Login, database og AI-agenter kommer i senere faser.
+
+---
+
+## Sådan starter du appen (for begyndere)
+
+Åbn en terminal i denne mappe (`lifeos`) og kør:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Åbn derefter **http://localhost:3000** i din browser. Du ser nu LifeOS-dashboardet.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For at stoppe serveren: tryk `Ctrl + C` i terminalen.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Andre kommandoer:
 
-## Learn More
+| Kommando        | Hvad den gør                                       |
+| --------------- | -------------------------------------------------- |
+| `npm run dev`   | Starter appen lokalt (til udvikling)               |
+| `npm run build` | Bygger en produktionsversion (tjekker for fejl)    |
+| `npm run start` | Kører den byggede produktionsversion               |
+| `npm run lint`  | Tjekker koden for fejl og dårlige mønstre          |
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Teknologi
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Next.js 16** (App Router) – *bemærk:* nyeste version, som afløser den i planen nævnte v15.
+- **TypeScript** – sikrere kode.
+- **Tailwind CSS v4** – styling via design tokens.
+- **shadcn/ui** – genbrugelige UI-komponenter.
+- **Framer Motion** – bløde animationer.
+- **Supabase** – database + login (forberedt, ikke aktiveret endnu).
+- **next-themes** – light/dark mode.
+- **PWA** – kan installeres på iPhone, iPad og desktop.
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Mappestruktur (kort)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/            Sider og ruter (Next.js App Router)
+  (app)/        Det "indre" af appen – får sidebar, topbar og mobilmenu
+components/     UI-komponenter (ui, layout, cards, dashboard ...)
+config/         Navigation og global app-konfiguration
+hooks/          Genbrugelige React-hooks
+lib/            Hjælpefunktioner + Supabase-klienter
+types/          TypeScript-typer
+supabase/       Database-migrationer (kommer senere)
+agents/         AI-agenter (kommer senere)
+proxy.ts        Kører før hver side (afløser for "middleware")
+```
+
+---
+
+## Miljøvariabler
+
+Hemmelige nøgler bor i `.env.local` (deles ikke på git).
+Se `.env.example` for hvilke nøgler der skal bruges. I Fase 2 er alt pladsholdere.
