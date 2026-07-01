@@ -109,10 +109,8 @@ function DashboardHeader({
         </div>
         <span
           className={cn(
-            "mt-1 shrink-0 rounded-full px-3 py-1 text-xs font-semibold backdrop-blur",
-            isWork
-              ? "bg-amber-300/25 text-amber-50"
-              : "bg-white/20 text-white",
+            "mt-1 shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur",
+            isWork ? "bg-[#0b3d24]/80" : "bg-white/20",
           )}
         >
           {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
@@ -795,11 +793,19 @@ export function JarvisDashboard({
   const isWork = greeting.isWorkHours;
   const [selectedEmail, setSelectedEmail] = useState<DashboardEmail | null>(null);
 
-  // I privattid (aften/nat/weekend) viser forsiden KUN private ting –
-  // intet om Storgaard Biler / arbejde. I arbejdstid vises alt.
-  const visibleEmails = isWork ? emails : emails.filter((e) => e.workspace !== "work");
-  const visibleToday = isWork ? todayEvents : todayEvents.filter((e) => e.workspace !== "work");
-  const visibleTomorrow = isWork ? tomorrowEvents : tomorrowEvents.filter((e) => e.workspace !== "work");
+  // I privattid (aften/nat/weekend) viser forsiden KUN private ting – intet
+  // om Storgaard Biler / arbejde. I arbejdstid vises KUN arbejde – og kun det
+  // der reelt kommer fra Outlook (mail/kalender er den eneste arbejds-kilde),
+  // så indbakken/kalenderen er tom indtil Outlook er koblet rigtigt op.
+  const visibleEmails = isWork
+    ? emails.filter((e) => e.workspace === "work" && e.source === "outlook")
+    : emails.filter((e) => e.workspace !== "work");
+  const visibleToday = isWork
+    ? todayEvents.filter((e) => e.workspace === "work" && e.source === "outlook")
+    : todayEvents.filter((e) => e.workspace !== "work");
+  const visibleTomorrow = isWork
+    ? tomorrowEvents.filter((e) => e.workspace === "work" && e.source === "outlook")
+    : tomorrowEvents.filter((e) => e.workspace !== "work");
   const visibleUnread = visibleEmails.filter((e) => !e.is_read).length;
 
   const view = isWork

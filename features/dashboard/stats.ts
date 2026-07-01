@@ -188,6 +188,7 @@ export type DashboardEmail = {
   workspace: string;
   received_at: string | null;
   external_id: string | null;
+  source: string | null;
 };
 
 export type DashboardEvent = {
@@ -197,6 +198,7 @@ export type DashboardEvent = {
   ends_at: string | null;
   workspace: string;
   all_day: boolean;
+  source: string | null;
 };
 
 export type DashboardData = {
@@ -226,18 +228,18 @@ export async function getDashboardData(): Promise<DashboardData> {
     const [emailsRes, todayEventsRes, tomorrowEventsRes] = await Promise.all([
       supabase
         .from("emails")
-        .select("id, subject, from_addr, snippet, is_read, workspace, received_at, external_id")
+        .select("id, subject, from_addr, snippet, is_read, workspace, received_at, external_id, source")
         .order("received_at", { ascending: false })
         .limit(8),
       supabase
         .from("calendar_events")
-        .select("id, title, starts_at, ends_at, workspace, all_day")
+        .select("id, title, starts_at, ends_at, workspace, all_day, source")
         .gte("starts_at", todayStart.toISOString())
         .lt("starts_at", todayEnd.toISOString())
         .order("starts_at", { ascending: true }),
       supabase
         .from("calendar_events")
-        .select("id, title, starts_at, ends_at, workspace, all_day")
+        .select("id, title, starts_at, ends_at, workspace, all_day, source")
         .gte("starts_at", todayEnd.toISOString())
         .lt("starts_at", tomorrowEnd.toISOString())
         .order("starts_at", { ascending: true }),
