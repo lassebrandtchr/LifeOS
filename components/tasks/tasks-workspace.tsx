@@ -24,7 +24,7 @@ import type {
 } from "@/features/tasks/types";
 
 type Tab = "opgaver" | "projekter" | "historik" | "aktivitet";
-export type TaskFilter = "urgent" | "overdue" | "today";
+export type TaskFilter = "urgent" | "overdue" | "today" | "important";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "opgaver", label: "Opgaver" },
@@ -37,6 +37,7 @@ const filterLabel: Record<TaskFilter, string> = {
   urgent: "Hasteopgaver",
   overdue: "Forfaldne opgaver",
   today: "Planlagt til i dag",
+  important: "Vigtige opgaver denne uge",
 };
 
 /** Filtrer bucket-grupperne, så de kun indeholder én verdens opgaver. */
@@ -60,6 +61,7 @@ function applyTaskFilter(buckets: TasksByBucket, filter?: TaskFilter): TasksByBu
   const matches = (t: Task) => {
     if (filter === "urgent") return t.priority === "urgent";
     if (filter === "overdue") return !!t.deadline && new Date(t.deadline).getTime() < today0.getTime();
+    if (filter === "important") return t.priority === "important" && (t.bucket === "today" || t.bucket === "week");
     return t.bucket === "today";
   };
   const result = { today: [], week: [], later: [] } as TasksByBucket;

@@ -166,6 +166,7 @@ export function TaskBoard({ initial }: { initial: TasksByBucket }) {
 
   return (
     <DndContext
+      id="task-board"
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}

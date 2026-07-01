@@ -1,21 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { Bell } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Logo } from "@/components/shared/logo";
 import { ProfileMenu } from "@/components/layout/profile-menu";
 import { GlobalSearch } from "@/components/layout/global-search";
+import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { siteConfig } from "@/config/site";
 import type { SessionUser } from "@/lib/auth/dal";
+import type { NotificationItem } from "@/features/dashboard/notifications";
 
 /**
  * Topbar – øverste bjælke. Indeholder global søgning, notifikationer,
  * tema-skifter, profilmenu og – på mobil – app-logoet.
  */
-export function Topbar({ user }: { user: SessionUser }) {
+export function Topbar({
+  user,
+  notifications,
+}: {
+  user: SessionUser;
+  notifications: NotificationItem[];
+}) {
   return (
     <header className="glass sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/60 px-4 lg:px-6">
       {/* Logo (kun mobil – på desktop ligger logoet i sidebaren) */}
@@ -31,15 +37,7 @@ export function Topbar({ user }: { user: SessionUser }) {
 
       {/* Handlinger til højre */}
       <div className="ml-auto flex items-center gap-1 md:ml-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label="Notifikationer"
-          className="relative"
-        >
-          <Bell className="size-5" />
-          <span className="absolute right-2 top-2 size-2 rounded-full bg-primary" />
-        </Button>
+        <NotificationsBell items={notifications} />
         <ThemeToggle />
         {/* Profilmenu (indlogget bruger) – synlig også på mobil */}
         <ProfileMenu user={user} />

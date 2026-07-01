@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -35,7 +36,10 @@ function startOfToday(): number {
   return d.getTime();
 }
 
-async function fetchTasks(): Promise<RawTask[]> {
+// cache() dedupliker kaldet inden for samme request – både topbarens
+// notifikationsklokke og forsidens statistik kan trygt kalde getDashboardStats()
+// uden at ramme databasen to gange.
+const fetchTasks = cache(async (): Promise<RawTask[]> => {
   if (!isSupabaseConfigured()) return [];
   try {
     const supabase = await createClient();
@@ -47,7 +51,7 @@ async function fetchTasks(): Promise<RawTask[]> {
   } catch {
     return [];
   }
-}
+});
 
 // ── Fælles: færdige opgaver pr. dag/uge ud fra completed_at ──
 function completedBuckets(
@@ -118,6 +122,9 @@ export type DashboardStats = {
   urgent: number;
   urgentWork: number;
   urgentPrivate: number;
+  importantWeek: number;
+  importantWeekWork: number;
+  importantWeekPrivate: number;
   activeWork: number;
   activePrivate: number;
   doneTotal: number;
@@ -143,6 +150,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   const isOverdue = (t: RawTask) => !!t.deadline && new Date(t.deadline).getTime() < today0;
   const isUrgent = (t: RawTask) => t.priority === "urgent";
+  const isImportantSoon = (t: RawTask) =>
+    t.priority === "important" && (t.bucket === "today" || t.bucket === "week");
   const isToday = (t: RawTask) => t.bucket === "today";
   const isWeek = (t: RawTask) => t.bucket === "week";
   const work = (t: RawTask) => t.workspace === "work";
@@ -167,6 +176,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     urgent: active.filter(isUrgent).length,
     urgentWork: active.filter((t) => isUrgent(t) && work(t)).length,
     urgentPrivate: active.filter((t) => isUrgent(t) && priv(t)).length,
+    importantWeek: active.filter(isImportantSoon).length,
+    importantWeekWork: active.filter((t) => isImportantSoon(t) && work(t)).length,
+    importantWeekPrivate: active.filter((t) => isImportantSoon(t) && priv(t)).length,
     activeWork: active.filter(work).length,
     activePrivate: active.filter(priv).length,
     doneTotal: tasks.filter((t) => t.status === "done").length,

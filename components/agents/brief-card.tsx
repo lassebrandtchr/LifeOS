@@ -10,18 +10,22 @@ export function BriefCard({
   brief: { greeting: string; title: string; lines: string[] };
 }) {
   return (
-    <div className="relative overflow-hidden rounded-card border border-white/10 p-6 text-white shadow-soft-lg sm:p-7">
+    <div
+      className="relative overflow-hidden rounded-card border border-white/15 p-6 text-white shadow-greeting sm:p-7"
+      style={{ backgroundImage: "var(--greeting-bg)" }}
+    >
+      {/* glas-skær – samme liquid glass-look som "Goddag, Lasse" på forsiden */}
       <div
         aria-hidden
-        className="absolute inset-0 -z-20"
+        className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            "linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #4f8dff 100%)",
+            "radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.22), transparent 55%)",
         }}
       />
       <div
         aria-hidden
-        className="absolute -right-10 -top-16 -z-10 size-56 rounded-full bg-white/15 blur-3xl"
+        className="absolute -right-10 -top-16 size-56 rounded-full bg-white/20 blur-3xl"
       />
       <div className="flex items-center gap-2 text-sm font-medium text-white/85">
         <Sparkles className="size-4" />

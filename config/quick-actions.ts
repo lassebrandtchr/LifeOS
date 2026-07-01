@@ -1,7 +1,7 @@
 import {
   Plus,
   Gavel,
-  KeyRound,
+  Globe,
   Wrench,
   ShieldAlert,
   CalendarPlus,
@@ -33,10 +33,10 @@ export const storgaardActions: QuickAction[] = [
   },
   {
     kind: "new-event",
-    label: "Aflevering af bil",
-    icon: KeyRound,
+    label: "Import af bil",
+    icon: Globe,
     color: "#e6b15a",
-    title: "Aflevering af bil",
+    title: "Import af bil",
     workspace: "work",
   },
   {

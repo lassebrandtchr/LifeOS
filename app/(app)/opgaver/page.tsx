@@ -18,9 +18,9 @@ export const metadata = { title: "Opgaver" };
  * ?aaben=<id> kommer fra "Hurtige handlinger" på andre sider og åbner den
  * netop oprettede opgaves editor automatisk.
  *
- * ?filter=urgent|overdue|today kommer fra "Arbejdsoverblik" på forsiden –
- * klikker man en linje (fx "3 hasteopgaver"), lander man her med kun de
- * relevante opgaver synlige.
+ * ?filter=urgent|overdue|today|important kommer fra "Arbejdsoverblik" på
+ * forsiden og notifikationsklokken i topbaren – klikker man en linje (fx
+ * "3 hasteopgaver"), lander man her med kun de relevante opgaver synlige.
  */
 export default async function OpgaverPage({
   searchParams,
@@ -38,7 +38,10 @@ export default async function OpgaverPage({
     ]);
 
   const initialFilter =
-    filter === "urgent" || filter === "overdue" || filter === "today"
+    filter === "urgent" ||
+    filter === "overdue" ||
+    filter === "today" ||
+    filter === "important"
       ? filter
       : undefined;
 
