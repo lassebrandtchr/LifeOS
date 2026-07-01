@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { motion } from "framer-motion";
-import { Search, FolderKanban, History, Activity } from "lucide-react";
+import { Search, FolderKanban, History, Activity, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import type {
 } from "@/features/tasks/types";
 
 type Tab = "opgaver" | "projekter" | "historik" | "aktivitet";
+export type TaskFilter = "urgent" | "overdue" | "today";
 
 const tabs: { id: Tab; label: string }[] = [
   { id: "opgaver", label: "Opgaver" },
@@ -31,6 +32,12 @@ const tabs: { id: Tab; label: string }[] = [
   { id: "historik", label: "Historik" },
   { id: "aktivitet", label: "Aktivitet" },
 ];
+
+const filterLabel: Record<TaskFilter, string> = {
+  urgent: "Hasteopgaver",
+  overdue: "Forfaldne opgaver",
+  today: "Planlagt til i dag",
+};
 
 /** Filtrer bucket-grupperne, så de kun indeholder én verdens opgaver. */
 function bucketsForWorkspace(
@@ -40,6 +47,24 @@ function bucketsForWorkspace(
   const result = { today: [], week: [], later: [] } as TasksByBucket;
   for (const b of bucketOrder) {
     result[b] = all[b].filter((t) => t.workspace === workspace);
+  }
+  return result;
+}
+
+/** Filtrer bucket-grupperne yderligere ned til fx haster/forfaldne/i dag – matcher
+ *  samme logik som forsidens "Arbejdsoverblik" (features/dashboard/stats.ts). */
+function applyTaskFilter(buckets: TasksByBucket, filter?: TaskFilter): TasksByBucket {
+  if (!filter) return buckets;
+  const today0 = new Date();
+  today0.setHours(0, 0, 0, 0);
+  const matches = (t: Task) => {
+    if (filter === "urgent") return t.priority === "urgent";
+    if (filter === "overdue") return !!t.deadline && new Date(t.deadline).getTime() < today0.getTime();
+    return t.bucket === "today";
+  };
+  const result = { today: [], week: [], later: [] } as TasksByBucket;
+  for (const b of bucketOrder) {
+    result[b] = buckets[b].filter(matches);
   }
   return result;
 }
@@ -84,6 +109,7 @@ export function TasksWorkspace({
   completedCounts,
   initialOrder,
   openTaskId,
+  initialFilter,
 }: {
   initialBuckets: TasksByBucket;
   projects: Project[];
@@ -92,6 +118,7 @@ export function TasksWorkspace({
   completedCounts: Record<Workspace, number>;
   initialOrder: Workspace[];
   openTaskId?: string;
+  initialFilter?: TaskFilter;
 }) {
   const [tab, setTab] = React.useState<Tab>("opgaver");
 
@@ -115,6 +142,10 @@ export function TasksWorkspace({
     return () => clearInterval(id);
   }, []);
 
+  // Filter fra forsidens "Arbejdsoverblik" (fx ?filter=urgent). Lokal state,
+  // så "×" kan rydde filteret uden en ny sidenavigation.
+  const [activeFilter, setActiveFilter] = React.useState<TaskFilter | undefined>(initialFilter);
+
   // Opdel opgaver og projekter pr. verden (memoiseret for stabile referencer).
   const sectionData = React.useMemo(() => {
     const map = {} as Record<
@@ -123,12 +154,12 @@ export function TasksWorkspace({
     >;
     for (const ws of ["work", "private"] as Workspace[]) {
       map[ws] = {
-        buckets: bucketsForWorkspace(initialBuckets, ws),
+        buckets: applyTaskFilter(bucketsForWorkspace(initialBuckets, ws), activeFilter),
         projects: projects.filter((p) => p.workspace === ws),
       };
     }
     return map;
-  }, [initialBuckets, projects]);
+  }, [initialBuckets, projects, activeFilter]);
 
   const filteredHistory = history.filter((h) =>
     (h.title ?? "").toLowerCase().includes(historyQuery.toLowerCase()),
@@ -145,6 +176,20 @@ export function TasksWorkspace({
           og Storgaard Biler.
         </p>
       </div>
+
+      {activeFilter && (
+        <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 px-3.5 py-2 text-sm font-medium text-primary">
+          <span>Viser: {filterLabel[activeFilter]}</span>
+          <button
+            type="button"
+            onClick={() => setActiveFilter(undefined)}
+            aria-label="Ryd filter"
+            className="ml-auto flex size-5 items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/15 hover:text-primary"
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Faner */}
       <div className="flex gap-1 rounded-xl border border-border/60 bg-card p-1">

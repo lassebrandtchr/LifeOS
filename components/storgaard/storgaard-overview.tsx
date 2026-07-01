@@ -9,67 +9,18 @@ import {
   Megaphone,
   AlertTriangle,
   BarChart3,
-  Plus,
-  Gavel,
-  KeyRound,
-  Wrench,
-  ShieldAlert,
   type LucideIcon,
 } from "lucide-react";
 
 import { SectionCard } from "@/components/dashboard/section-card";
-import {
-  PageQuickActions,
-  type QuickAction,
-} from "@/components/dashboard/page-quick-actions";
+import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
 import { ActionList } from "@/components/dashboard/action-list";
 import { BarList } from "@/components/ui/chart";
+import { storgaardActions } from "@/config/quick-actions";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
-
-const KLARGOERING_NOTE = "LAGERBIL\n1. Teknisk gennemgang\n/ Lasse";
-
-const storgaardActions: QuickAction[] = [
-  { kind: "navigate", label: "Ny opgave", icon: Plus, color: "#4f8dff", href: "/opgaver" },
-  {
-    kind: "create-task",
-    label: "Bud på bil",
-    icon: Gavel,
-    color: "#34b3a4",
-    title: "Bud på bil",
-    workspace: "work",
-    category: "salg",
-  },
-  {
-    kind: "new-event",
-    label: "Aflevering af bil",
-    icon: KeyRound,
-    color: "#e6b15a",
-    title: "Aflevering af bil",
-    workspace: "work",
-  },
-  {
-    kind: "create-task",
-    label: "Teknisk/Kosmetisk klargøring",
-    icon: Wrench,
-    color: "#a78bfa",
-    title: "Teknisk/Kosmetisk klargøring",
-    workspace: "work",
-    category: "administration",
-    note: KLARGOERING_NOTE,
-  },
-  {
-    kind: "create-task",
-    label: "Reklamation",
-    icon: ShieldAlert,
-    color: "#e5484d",
-    title: "Reklamation",
-    workspace: "work",
-    priority: "urgent",
-  },
-];
 
 const container: Variants = {
   hidden: { opacity: 0 },

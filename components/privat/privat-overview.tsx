@@ -1,41 +1,15 @@
 "use client";
 
-import { User, Plus, CalendarPlus, ShoppingCart, NotebookPen, Home } from "lucide-react";
+import { User } from "lucide-react";
 
-import {
-  PageQuickActions,
-  type QuickAction,
-} from "@/components/dashboard/page-quick-actions";
+import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
 import { ActionList } from "@/components/dashboard/action-list";
+import { privatActions } from "@/config/quick-actions";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
 
 const PRIVATE = "var(--accent-private)";
-
-const privatActions: QuickAction[] = [
-  { kind: "navigate", label: "Ny opgave", icon: Plus, color: "#4f8dff", href: "/opgaver" },
-  { kind: "new-event", label: "Ny aftale", icon: CalendarPlus, color: "#34b3a4", title: "", workspace: "private" },
-  {
-    kind: "create-task",
-    label: "Indkøb",
-    icon: ShoppingCart,
-    color: "#e6b15a",
-    title: "Indkøb",
-    workspace: "private",
-    category: "indkoeb",
-  },
-  {
-    kind: "create-task",
-    label: "Tangevej 94",
-    icon: Home,
-    color: "#a78bfa",
-    title: "Tangevej 94",
-    workspace: "private",
-    category: "tangevej_94",
-  },
-  { kind: "navigate", label: "Ny note", icon: NotebookPen, color: "#f472b6", href: "/opgaver" },
-];
 
 export function PrivatOverview({
   events,

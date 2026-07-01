@@ -1,3 +1,5 @@
+import { isWorkHours as computeIsWorkHours } from "@/features/tasks/section-order";
+
 export type GreetingResult = {
   text: string;
   emoji: string;
@@ -8,10 +10,9 @@ export type GreetingResult = {
 
 export function getGreeting(date: Date = new Date()): GreetingResult {
   const hour = date.getHours();
-  const dow = date.getDay(); // 0=Sun … 6=Sat
-  const isWeekday = dow >= 1 && dow <= 5;
-  // Arbejdstid: hverdage 09:00–17:00. Privattid (aftenoverblik): 17:00 → 09:00.
-  const isWorkHours = isWeekday && hour >= 9 && hour < 17;
+  // Arbejdstid defineres ét sted (features/tasks/section-order.ts), så hele
+  // appen er enig om hvornår det er arbejde vs. privat.
+  const isWorkHours = computeIsWorkHours(date);
 
   if (hour < 10)
     return { text: "Godmorgen", emoji: "☀️", period: "morgen", isWorkHours, periodLabel: isWorkHours ? "Arbejdstid" : "Morgen" };

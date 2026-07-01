@@ -21,6 +21,8 @@ import type { GreetingResult } from "@/features/dashboard/greeting";
 import type { DashboardData, DashboardEmail, DashboardEvent } from "@/features/dashboard/stats";
 import { siteConfig } from "@/config/site";
 import { focusTasks } from "@/features/dashboard/data";
+import { storgaardActions, privatActions } from "@/config/quick-actions";
+import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import {
   getEmailDetail,
   sendEmailReply,
@@ -147,15 +149,15 @@ function DayBriefing({
   isWork: boolean;
   breakdown?: Breakdown;
 }) {
-  const bullets: { text: string; tone: "ok" | "warn" | "danger" | "info" }[] = [];
+  const bullets: { text: string; tone: "ok" | "warn" | "danger" | "info"; href?: string }[] = [];
 
   if (unread > 0)
-    bullets.push({ text: `${unread} ulæste mail${unread !== 1 ? "s" : ""} venter`, tone: "info" });
+    bullets.push({ text: `${unread} ulæste mail${unread !== 1 ? "s" : ""} venter`, tone: "info", href: "/mail" });
   else
     bullets.push({ text: "Ingen ulæste mails – indbakken er tom", tone: "ok" });
 
   if (eventCount > 0)
-    bullets.push({ text: `${eventCount} ${eventCount === 1 ? "aftale" : "aftaler"} i dag`, tone: "info" });
+    bullets.push({ text: `${eventCount} ${eventCount === 1 ? "aftale" : "aftaler"} i dag`, tone: "info", href: "/kalender" });
   else
     bullets.push({ text: "Ingen aftaler registreret i dag", tone: "ok" });
 
@@ -170,6 +172,7 @@ function DayBriefing({
     bullets.push({
       text: `${urgent} hasteoppgave${urgent !== 1 ? "r" : ""}${detail} kræver handling`,
       tone: "danger",
+      href: "/opgaver?filter=urgent",
     });
   }
 
@@ -184,11 +187,16 @@ function DayBriefing({
     bullets.push({
       text: `${overdue} forfaldne opgave${overdue !== 1 ? "r" : ""}${detail}`,
       tone: "warn",
+      href: "/opgaver?filter=overdue",
     });
   }
 
   if (today > 0)
-    bullets.push({ text: `${today} opgave${today !== 1 ? "r" : ""} planlagt til i dag`, tone: "info" });
+    bullets.push({
+      text: `${today} opgave${today !== 1 ? "r" : ""} planlagt til i dag`,
+      tone: "info",
+      href: "/opgaver?filter=today",
+    });
 
   if (bullets.filter((b) => b.tone === "danger" || b.tone === "warn").length === 0)
     bullets.push({ text: isWork ? "Alt ser roligt ud – god arbejdsdag!" : "Alt ser roligt ud – nyd aftenen!", tone: "ok" });
@@ -212,12 +220,25 @@ function DayBriefing({
         {isWork ? "ARBEJDSOVERBLIK" : "AFTENOVERBLIK"}
       </p>
       <div className="space-y-2">
-        {bullets.map((b, i) => (
-          <div key={i} className="flex items-center gap-2.5">
-            <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[b.tone])} />
-            <span className={cn("text-sm font-medium", toneClass[b.tone])}>{b.text}</span>
-          </div>
-        ))}
+        {bullets.map((b, i) => {
+          const dot = <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[b.tone])} />;
+          const label = <span className={cn("text-sm font-medium", toneClass[b.tone])}>{b.text}</span>;
+          return b.href ? (
+            <Link
+              key={i}
+              href={b.href}
+              className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-secondary/50"
+            >
+              {dot}
+              {label}
+            </Link>
+          ) : (
+            <div key={i} className="flex items-center gap-2.5">
+              {dot}
+              {label}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -848,6 +869,12 @@ export function JarvisDashboard({
           isWork={isWork}
           breakdown={view.breakdown}
         />
+
+        {/* Hurtige handlinger – skifter automatisk mellem Storgaard Biler og
+            Privat ud fra arbejdstid (samme knapper som på undersiderne). */}
+        <div className="max-w-4xl">
+          <PageQuickActions actions={isWork ? storgaardActions : privatActions} />
+        </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <InboxCard emails={visibleEmails} isWork={isWork} onEmailClick={setSelectedEmail} />
