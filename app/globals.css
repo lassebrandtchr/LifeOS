@@ -226,6 +226,19 @@
     0 16px 40px -12px rgba(15, 31, 51, 0.18);
 }
 
+/* Hurtige handlinger-knap – lyser op i SIN EGEN ikonfarve (--qa-color, sat
+   pr. knap), og kun på den knap musen rammer (almindelig :hover, ikke
+   group-hover, så nabo-knapperne aldrig reagerer på samme hover). */
+@utility quick-action-btn {
+  &:hover {
+    border-color: color-mix(in oklab, var(--qa-color) 55%, transparent);
+    background-color: color-mix(in oklab, var(--qa-color) 14%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--qa-color) 40%, transparent),
+      0 10px 26px -8px color-mix(in oklab, var(--qa-color) 55%, transparent);
+  }
+}
+
 /* Glasmorphism – brugt MEGET diskret (topbar, mobilmenu) for at skabe dybde */
 @utility glass {
   background-color: color-mix(in oklab, var(--background) 72%, transparent);

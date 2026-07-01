@@ -871,10 +871,9 @@ export function JarvisDashboard({
         />
 
         {/* Hurtige handlinger – skifter automatisk mellem Storgaard Biler og
-            Privat ud fra arbejdstid (samme knapper som på undersiderne). */}
-        <div className="max-w-4xl">
-          <PageQuickActions actions={isWork ? storgaardActions : privatActions} />
-        </div>
+            Privat ud fra arbejdstid (samme knapper som på undersiderne), i
+            samme bredde som Arbejdsoverblik ovenover, men mere kompakte kasser. */}
+        <PageQuickActions actions={isWork ? storgaardActions : privatActions} />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <InboxCard emails={visibleEmails} isWork={isWork} onEmailClick={setSelectedEmail} />

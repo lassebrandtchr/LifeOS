@@ -104,23 +104,19 @@ export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
               type="button"
               onClick={() => run(action)}
               disabled={Boolean(pending)}
-              className="group relative flex flex-col items-center justify-center gap-2.5 overflow-hidden rounded-xl border border-border/60 bg-secondary/30 p-4 text-center transition-all duration-200 ease-out hover:-translate-y-1 hover:border-primary/30 hover:bg-secondary hover:shadow-soft disabled:opacity-60"
+              className="quick-action-btn group relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-secondary/30 p-3 text-center transition-all duration-200 ease-out hover:-translate-y-1 disabled:opacity-60"
+              style={{ "--qa-color": action.color } as React.CSSProperties}
             >
               <span
-                className="flex size-11 items-center justify-center rounded-xl transition-transform duration-200 ease-out group-hover:scale-110"
+                className="flex size-9 items-center justify-center rounded-xl transition-transform duration-200 ease-out group-hover:scale-110"
                 style={{
                   backgroundColor: `color-mix(in oklab, ${action.color} 16%, transparent)`,
                   color: action.color,
                 }}
               >
-                <Icon className={isPending ? "size-5 animate-pulse" : "size-5"} />
+                <Icon className={isPending ? "size-4 animate-pulse" : "size-4"} />
               </span>
-              <span className="text-sm font-medium leading-tight">{action.label}</span>
-              <span
-                aria-hidden
-                className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 transition-transform duration-300 ease-out group-hover:scale-x-100"
-                style={{ backgroundColor: action.color }}
-              />
+              <span className="text-xs font-medium leading-tight">{action.label}</span>
             </motion.button>
           );
         })}
