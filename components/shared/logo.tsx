@@ -69,6 +69,7 @@ export function Logo({
             width={size}
             height={size}
             priority
+            quality={95}
             className="size-full rounded-[24%]"
           />
         </motion.span>
