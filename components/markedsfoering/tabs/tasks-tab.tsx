@@ -11,18 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/markedsfoering/ui";
-import { DetailProvider, useOpenDetail } from "@/components/tasks/detail-context";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import { priorities, priorityOrder, statuses, categoryById, type Priority } from "@/features/tasks/constants";
 import { quickCreateTask } from "@/features/tasks/actions";
 import { parseTaskInput } from "@/features/tasks/parse";
 import type { Task } from "@/features/tasks/types";
 
 export function TasksTab({ tasks, autoCreate = false }: { tasks: Task[]; autoCreate?: boolean }) {
-  return (
-    <DetailProvider>
-      <TasksInner tasks={tasks} autoCreate={autoCreate} />
-    </DetailProvider>
-  );
+  return <TasksInner tasks={tasks} autoCreate={autoCreate} />;
 }
 
 function TasksInner({ tasks, autoCreate }: { tasks: Task[]; autoCreate: boolean }) {

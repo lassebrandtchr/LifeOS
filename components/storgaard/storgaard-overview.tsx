@@ -9,8 +9,6 @@ import {
   Megaphone,
   AlertTriangle,
   BarChart3,
-  TrendingUp,
-  Target,
   Plus,
   Gavel,
   KeyRound,
@@ -26,7 +24,7 @@ import {
 } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
 import { WorkspaceTasks } from "@/components/dashboard/workspace-tasks";
-import { BarList, AreaChart, ProgressRing } from "@/components/ui/chart";
+import { BarList } from "@/components/ui/chart";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
 import type { Task } from "@/features/tasks/types";
@@ -101,8 +99,6 @@ export function StorgaardOverview({
     { label: "Markedsføring", value: stats.markedsfoering, icon: Megaphone, color: "var(--success)" },
     { label: "Forfaldne", value: stats.overdue, icon: AlertTriangle, color: "var(--destructive)" },
   ];
-  const total8 = stats.completed8Weeks.reduce((s, p) => s + p.value, 0);
-  const pct = stats.totalWork > 0 ? Math.round((stats.doneWork / stats.totalWork) * 100) : 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -166,7 +162,7 @@ export function StorgaardOverview({
         animate="show"
         className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3"
       >
-        <motion.div variants={item} className="lg:col-span-2">
+        <motion.div variants={item} className="lg:col-span-3">
           <SectionCard title="Aktivitet pr. område" icon={BarChart3} href="/opgaver">
             {stats.byCategory.length === 0 ? (
               <Empty text="Ingen arbejdsopgaver endnu. Hent dem fra Notion eller opret en opgave." />
@@ -180,42 +176,6 @@ export function StorgaardOverview({
                 }))}
               />
             )}
-          </SectionCard>
-        </motion.div>
-
-        <motion.div variants={item}>
-          <SectionCard title="Fremdrift" icon={Target}>
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 py-2">
-              <ProgressRing
-                value={stats.doneWork}
-                max={stats.totalWork}
-                label={`${pct}%`}
-                sublabel="afsluttet"
-                color={WORK}
-              />
-              <div className="flex w-full justify-around text-center">
-                <div>
-                  <div className="text-lg font-semibold tabular-nums">{stats.activeWork}</div>
-                  <div className="text-xs text-muted-foreground">Åbne</div>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold tabular-nums">{stats.doneWork}</div>
-                  <div className="text-xs text-muted-foreground">Færdige</div>
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-        </motion.div>
-
-        <motion.div variants={item} className="lg:col-span-3">
-          <SectionCard title="Afsluttede opgaver pr. uge" icon={TrendingUp} href="/opgaver">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-semibold tabular-nums">{total8}</span>
-              <span className="text-sm text-muted-foreground">sidste 8 uger</span>
-            </div>
-            <div className="pt-4">
-              <AreaChart points={stats.completed8Weeks} color={WORK} height={96} />
-            </div>
           </SectionCard>
         </motion.div>
 

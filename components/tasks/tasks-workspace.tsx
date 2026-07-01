@@ -12,7 +12,7 @@ import { QuickAdd } from "@/components/tasks/quick-add";
 import { TaskSection } from "@/components/tasks/task-section";
 import { NewProjectForm } from "@/components/tasks/new-project-form";
 import { ProjectCard } from "@/components/tasks/project-card";
-import { DetailProvider, useOpenDetail } from "@/components/tasks/detail-context";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import { bucketOrder, type Workspace } from "@/features/tasks/constants";
 import { getWorkspaceOrder } from "@/features/tasks/section-order";
 import type {
@@ -135,7 +135,7 @@ export function TasksWorkspace({
   );
 
   return (
-    <DetailProvider>
+    <>
     <AutoOpen task={openTask} />
     <div className="mx-auto max-w-6xl space-y-6">
       <div>
@@ -273,7 +273,7 @@ export function TasksWorkspace({
         </div>
       )}
     </div>
-    </DetailProvider>
+    </>
   );
 }
 

@@ -9,7 +9,7 @@ import {
   PageQuickActions,
   type QuickAction,
 } from "@/components/dashboard/page-quick-actions";
-import { DetailProvider, useOpenDetail } from "@/components/tasks/detail-context";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import { priorities, categoryById, statuses } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
 
@@ -64,45 +64,43 @@ export function MarkedsfoeringView({ tasks }: { tasks: Task[] }) {
   const done = tasks.filter((t) => t.status === "done");
 
   return (
-    <DetailProvider>
-      <div className="mx-auto max-w-5xl space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div
-            className="flex size-11 items-center justify-center rounded-xl"
-            style={{ backgroundColor: `color-mix(in oklab, ${ACCENT} 16%, transparent)`, color: ACCENT }}
-          >
-            <Megaphone className="size-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Markedsføring</h1>
-            <p className="text-sm text-muted-foreground">
-              Opslag, kampagner og indhold for Storgaard Biler.
-            </p>
-          </div>
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div
+          className="flex size-11 items-center justify-center rounded-xl"
+          style={{ backgroundColor: `color-mix(in oklab, ${ACCENT} 16%, transparent)`, color: ACCENT }}
+        >
+          <Megaphone className="size-6" />
         </div>
-
-        {/* Hurtige handlinger */}
-        <PageQuickActions actions={marketingActions} />
-
-        {/* Opgaveliste */}
-        <Card className="px-4 py-2">
-          <div className="flex items-center justify-between px-1 py-2">
-            <h2 className="text-sm font-semibold">Aktive markedsføringsopgaver</h2>
-            <span className="text-xs text-muted-foreground">
-              {active.length} aktive{done.length > 0 ? ` · ${done.length} færdige` : ""}
-            </span>
-          </div>
-          {active.length === 0 ? (
-            <p className="px-1 py-8 text-center text-sm text-muted-foreground">
-              Ingen markedsføringsopgaver endnu. Brug en hurtig handling ovenfor for
-              at oprette den første.
-            </p>
-          ) : (
-            active.map((t) => <TaskRow key={t.id} task={t} />)
-          )}
-        </Card>
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Markedsføring</h1>
+          <p className="text-sm text-muted-foreground">
+            Opslag, kampagner og indhold for Storgaard Biler.
+          </p>
+        </div>
       </div>
-    </DetailProvider>
+
+      {/* Hurtige handlinger */}
+      <PageQuickActions actions={marketingActions} />
+
+      {/* Opgaveliste */}
+      <Card className="px-4 py-2">
+        <div className="flex items-center justify-between px-1 py-2">
+          <h2 className="text-sm font-semibold">Aktive markedsføringsopgaver</h2>
+          <span className="text-xs text-muted-foreground">
+            {active.length} aktive{done.length > 0 ? ` · ${done.length} færdige` : ""}
+          </span>
+        </div>
+        {active.length === 0 ? (
+          <p className="px-1 py-8 text-center text-sm text-muted-foreground">
+            Ingen markedsføringsopgaver endnu. Brug en hurtig handling ovenfor for
+            at oprette den første.
+          </p>
+        ) : (
+          active.map((t) => <TaskRow key={t.id} task={t} />)
+        )}
+      </Card>
+    </div>
   );
 }

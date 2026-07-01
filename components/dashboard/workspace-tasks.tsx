@@ -5,6 +5,7 @@ import { Check, Calendar, ListChecks } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { SectionCard } from "@/components/dashboard/section-card";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import { setTaskStatus } from "@/features/tasks/actions";
 import { priorities, categoryById, buckets, bucketOrder } from "@/features/tasks/constants";
 import type { Workspace } from "@/features/tasks/constants";
@@ -96,13 +97,20 @@ function TaskRow({
   const prio = priorities[task.priority] ?? priorities.can_wait;
   const cat = categoryById(task.category);
   const deadline = formatDeadline(task.deadline);
+  const { open } = useOpenDetail();
 
   return (
-    <li className="-mx-1.5 flex items-start gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-secondary/50">
+    <li
+      onClick={() => open({ type: "task", task })}
+      className="-mx-1.5 flex cursor-pointer items-start gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors hover:bg-secondary/50"
+    >
       <button
         type="button"
         aria-label="Markér som færdig"
-        onClick={() => onComplete(task.id)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onComplete(task.id);
+        }}
         className="mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full border-2 border-border text-transparent transition-colors hover:border-success hover:text-success"
       >
         <Check className="size-2.5" />
