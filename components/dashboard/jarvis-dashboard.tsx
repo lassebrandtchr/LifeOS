@@ -109,9 +109,10 @@ function DashboardHeader({
         </div>
         <span
           className={cn(
-            "mt-1 shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/15 backdrop-blur",
-            isWork ? "bg-[#0b3d24]/80" : "bg-white/20",
+            "mt-1 shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]",
+            !isWork && "bg-white/20",
           )}
+          style={isWork ? { backgroundColor: "rgba(9, 46, 27, 0.9)" } : undefined}
         >
           {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
         </span>
