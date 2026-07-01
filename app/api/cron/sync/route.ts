@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { runAutomaticSync } from "@/features/integrations/cron-sync";
 
 /**
- * AUTOMATISK SYNK-ENDPOINT – kaldes af Vercel Cron hver 30. min.
+ * AUTOMATISK SYNK-ENDPOINT – kaldes af Vercel Cron hver 15. min.
  *
  * Sikkerhed: Vercel sender automatisk "Authorization: Bearer <CRON_SECRET>"
  * når CRON_SECRET er sat som miljøvariabel. Vi afviser alt andet, så ingen

@@ -23,7 +23,7 @@ import {
  * Hver funktion tager en EKSPLICIT supabase-klient + userId + et gyldigt token.
  * Derfor kan PRÆCIS samme kode bruges af:
  *   • de manuelle "Synk nu"-knapper (cookie-klient, den indloggede bruger), og
- *   • det automatiske cron-job hver 30. min (service-role admin-klient).
+ *   • det automatiske cron-job hver 15. min (service-role admin-klient).
  *
  * Funktionerne kalder IKKE revalidatePath – det gør kalderen (route/action).
  */

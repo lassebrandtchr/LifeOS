@@ -23,11 +23,11 @@ import {
   type QuickAction,
 } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
-import { WorkspaceTasks } from "@/components/dashboard/workspace-tasks";
+import { ActionList } from "@/components/dashboard/action-list";
 import { BarList } from "@/components/ui/chart";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
-import type { Task } from "@/features/tasks/types";
+import type { ActionListGroups } from "@/features/dashboard/action-list";
 
 const KLARGOERING_NOTE = "LAGERBIL\n1. Teknisk gennemgang\n/ Lasse";
 
@@ -86,12 +86,12 @@ export function StorgaardOverview({
   stats,
   events,
   mails,
-  tasks,
+  actionGroups,
 }: {
   stats: StorgaardStats;
   events: CalendarEventItem[];
   mails: MailMessage[];
-  tasks: Task[];
+  actionGroups: ActionListGroups;
 }) {
   const kpis: { label: string; value: number; icon: LucideIcon; color: string }[] = [
     { label: "Aktive leads", value: stats.leads, icon: Users, color: "var(--primary)" },
@@ -121,8 +121,8 @@ export function StorgaardOverview({
       {/* Hurtige handlinger */}
       <PageQuickActions actions={storgaardActions} />
 
-      {/* Præcis opgaveliste – kun arbejdsopgaver */}
-      <WorkspaceTasks tasks={tasks} workspace="work" />
+      {/* Action-liste – prioriteret, kombineret fra opgaver + Outlook-indbakke */}
+      <ActionList groups={actionGroups} workspace="work" />
 
       {/* KPI-fliser */}
       <motion.div

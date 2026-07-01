@@ -3,6 +3,7 @@ import { getStorgaardStats } from "@/features/dashboard/stats";
 import { getCalendarEvents, getMailMessages } from "@/features/integrations/queries";
 import { getTasksByBucket } from "@/features/tasks/queries";
 import { bucketOrder } from "@/features/tasks/constants";
+import { buildActionList } from "@/features/dashboard/action-list";
 
 export const metadata = { title: "Storgaard Biler" };
 
@@ -26,6 +27,14 @@ export default async function StorgaardBilerPage() {
   const tasks = bucketOrder
     .flatMap((b) => taskBuckets[b])
     .filter((t) => t.workspace === "work");
+  const actionGroups = buildActionList(tasks, mails, "work");
 
-  return <StorgaardOverview stats={stats} events={events} mails={mails} tasks={tasks} />;
+  return (
+    <StorgaardOverview
+      stats={stats}
+      events={events}
+      mails={mails}
+      actionGroups={actionGroups}
+    />
+  );
 }

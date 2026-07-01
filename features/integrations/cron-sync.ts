@@ -15,7 +15,7 @@ import {
 } from "@/features/integrations/sync-core";
 
 /**
- * AUTOMATISK BAGGRUNDS-SYNK (cron, hver 30. min).
+ * AUTOMATISK BAGGRUNDS-SYNK (cron, hver 15. min).
  *
  * Kører UDEN en indlogget bruger – derfor service-role admin-klienten.
  * Finder alle brugere med en forbindelse og synker det, hver enkelt har sat op:

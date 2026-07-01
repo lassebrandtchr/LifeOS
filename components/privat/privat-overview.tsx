@@ -7,9 +7,9 @@ import {
   type QuickAction,
 } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
-import { WorkspaceTasks } from "@/components/dashboard/workspace-tasks";
+import { ActionList } from "@/components/dashboard/action-list";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
-import type { Task } from "@/features/tasks/types";
+import type { ActionListGroups } from "@/features/dashboard/action-list";
 
 const PRIVATE = "var(--accent-private)";
 
@@ -40,11 +40,11 @@ const privatActions: QuickAction[] = [
 export function PrivatOverview({
   events,
   mails,
-  tasks,
+  actionGroups,
 }: {
   events: CalendarEventItem[];
   mails: MailMessage[];
-  tasks: Task[];
+  actionGroups: ActionListGroups;
 }) {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -67,8 +67,8 @@ export function PrivatOverview({
       {/* Hurtige handlinger */}
       <PageQuickActions actions={privatActions} />
 
-      {/* Præcis opgaveliste – kun private opgaver */}
-      <WorkspaceTasks tasks={tasks} workspace="private" />
+      {/* Action-liste – prioriteret, kombineret fra opgaver + Gmail-indbakke */}
+      <ActionList groups={actionGroups} workspace="private" />
 
       {/* Privat kalender + privat mail samlet her */}
       <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">

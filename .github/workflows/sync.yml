@@ -2,9 +2,9 @@ name: Auto-sync (Gmail, Google Kalender, Outlook, Notion)
 
 on:
   schedule:
-    # Hver 30. minut. Vercel Hobby-planen tillader kun cron 1x/dag,
+    # Hver 15. minut. Vercel Hobby-planen tillader kun cron 1x/dag,
     # så vi kører synken herfra i stedet (GitHub Actions er gratis).
-    - cron: "*/30 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 jobs:
