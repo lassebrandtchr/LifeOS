@@ -5,19 +5,13 @@ import { ResetPasswordForm } from "@/features/auth/components/reset-password-for
 
 export const metadata: Metadata = { title: "Nulstil kodeord" };
 
-export default async function ResetPasswordPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ token_hash?: string; type?: string }>;
-}) {
-  const { token_hash: tokenHash } = await searchParams;
-
+export default function ResetPasswordPage() {
   return (
     <AuthCard
       title="Nulstil kodeord"
       description="Vælg et nyt og sikkert kodeord til din konto."
     >
-      <ResetPasswordForm tokenHash={tokenHash} />
+      <ResetPasswordForm />
     </AuthCard>
   );
 }
