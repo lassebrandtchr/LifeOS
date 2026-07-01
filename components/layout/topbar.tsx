@@ -20,7 +20,7 @@ export function Topbar({ user }: { user: SessionUser }) {
     <header className="glass sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border/60 px-4 lg:px-6">
       {/* Logo (kun mobil – på desktop ligger logoet i sidebaren) */}
       <Link href="/" className="flex items-center gap-2 lg:hidden">
-        <Logo size={32} />
+        <Logo size={40} />
         <span className="text-sm font-semibold">{siteConfig.name}</span>
       </Link>
 

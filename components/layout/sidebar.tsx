@@ -23,7 +23,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
     <aside className="app-sidebar sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-2 self-start overflow-y-auto border-r p-4 lg:flex">
       {/* Logo / brand */}
       <Link href="/" className="flex items-center gap-3 px-2 py-3">
-        <Logo size={38} />
+        <Logo size={52} />
         <div className="leading-tight">
           <p className="text-sm font-semibold">{siteConfig.name}</p>
           <p className="text-xs text-muted-foreground">Dit AI-styresystem</p>
