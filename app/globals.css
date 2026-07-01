@@ -68,6 +68,10 @@
   /* Menu i venstre side – lidt dybere grøn gradient end baggrunden */
   --sidebar-grad: linear-gradient(180deg, #dcefdd 0%, #c4e2c8 55%, #b6dabb 100%);
   --sidebar-border: #b3d6b8;
+
+  /* Dashboard-header ("Goddag, Lasse") – dyb skov-til-smaragd, står markant frem
+     mod den lyse mint-baggrund og den blege salvie-sidebar. */
+  --greeting-bg: linear-gradient(135deg, #0a3a22 0%, #146c3a 60%, #1f8a4c 100%);
 }
 
 /* ------------------------------ DARK MODE ----------------------------- */
@@ -116,6 +120,10 @@
   /* Menu i venstre side – beholder sin MØRKE grønne gradient (kontrast til slate) */
   --sidebar-grad: linear-gradient(168deg, #0c2417 0%, #061710 55%, #0a2014 100%);
   --sidebar-border: #15351f;
+
+  /* Dashboard-header ("Goddag, Lasse") – lysende smaragd-til-brand-grøn, så den
+     løftes tydeligt fri af den kulsorte sidebar og den kølige slate-baggrund. */
+  --greeting-bg: linear-gradient(135deg, #12432b 0%, #1f8f52 55%, #4ae693 100%);
 }
 
 /* --------------- Kobl tokens til Tailwind-utility-klasser -------------- */
@@ -208,6 +216,14 @@
   box-shadow:
     0 0 0 1px var(--glow),
     0 8px 28px -6px var(--glow);
+}
+
+/* Grøn glød + blød dybde-skygge – løfter dashboard-headeren fri af sidebar/baggrund */
+@utility shadow-greeting {
+  box-shadow:
+    0 0 0 1px var(--glow),
+    0 8px 28px -6px var(--glow),
+    0 16px 40px -12px rgba(15, 31, 51, 0.18);
 }
 
 /* Glasmorphism – brugt MEGET diskret (topbar, mobilmenu) for at skabe dybde */

@@ -79,10 +79,9 @@ function DashboardHeader({
 
   return (
     <div
-      className="relative overflow-hidden rounded-card border border-white/15 px-6 py-5 text-white shadow-soft-lg sm:px-8 sm:py-6"
+      className="relative overflow-hidden rounded-card border border-white/15 px-6 py-5 text-white shadow-greeting sm:px-8 sm:py-6"
       style={{
-        backgroundImage:
-          "linear-gradient(135deg, #0b3d24 0%, #16a34a 55%, #3ddc84 100%)",
+        backgroundImage: "var(--greeting-bg)",
       }}
     >
       {/* glas-skær */}

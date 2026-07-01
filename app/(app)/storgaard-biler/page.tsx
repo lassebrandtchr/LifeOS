@@ -1,6 +1,8 @@
 import { StorgaardOverview } from "@/components/storgaard/storgaard-overview";
 import { getStorgaardStats } from "@/features/dashboard/stats";
 import { getCalendarEvents, getMailMessages } from "@/features/integrations/queries";
+import { getTasksByBucket } from "@/features/tasks/queries";
+import { bucketOrder } from "@/features/tasks/constants";
 
 export const metadata = { title: "Storgaard Biler" };
 
@@ -9,10 +11,11 @@ export const metadata = { title: "Storgaard Biler" };
  * arbejdsaftaler og seneste arbejdsmails (alt filtreret til verden 'work').
  */
 export default async function StorgaardBilerPage() {
-  const [stats, allEvents, allMails] = await Promise.all([
+  const [stats, allEvents, allMails, taskBuckets] = await Promise.all([
     getStorgaardStats(),
     getCalendarEvents(200),
     getMailMessages(50),
+    getTasksByBucket(),
   ]);
 
   const now = new Date().toISOString();
@@ -20,6 +23,9 @@ export default async function StorgaardBilerPage() {
     (e) => e.workspace === "work" && (e.startsAt ?? "") >= now.slice(0, 10),
   );
   const mails = allMails.filter((m) => m.workspace === "work");
+  const tasks = bucketOrder
+    .flatMap((b) => taskBuckets[b])
+    .filter((t) => t.workspace === "work");
 
-  return <StorgaardOverview stats={stats} events={events} mails={mails} />;
+  return <StorgaardOverview stats={stats} events={events} mails={mails} tasks={tasks} />;
 }

@@ -232,6 +232,8 @@ export async function setTaskStatus(id: string, status: Status) {
       { status },
     );
     revalidatePath("/opgaver");
+    revalidatePath("/storgaard-biler");
+    revalidatePath("/privat");
   } catch {
     // ignoreres
   }

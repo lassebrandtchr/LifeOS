@@ -25,9 +25,11 @@ import {
   type QuickAction,
 } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
+import { WorkspaceTasks } from "@/components/dashboard/workspace-tasks";
 import { BarList, AreaChart, ProgressRing } from "@/components/ui/chart";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
+import type { Task } from "@/features/tasks/types";
 
 const KLARGOERING_NOTE = "LAGERBIL\n1. Teknisk gennemgang\n/ Lasse";
 
@@ -86,10 +88,12 @@ export function StorgaardOverview({
   stats,
   events,
   mails,
+  tasks,
 }: {
   stats: StorgaardStats;
   events: CalendarEventItem[];
   mails: MailMessage[];
+  tasks: Task[];
 }) {
   const kpis: { label: string; value: number; icon: LucideIcon; color: string }[] = [
     { label: "Aktive leads", value: stats.leads, icon: Users, color: "var(--primary)" },
@@ -120,6 +124,9 @@ export function StorgaardOverview({
 
       {/* Hurtige handlinger */}
       <PageQuickActions actions={storgaardActions} />
+
+      {/* Præcis opgaveliste – kun arbejdsopgaver */}
+      <WorkspaceTasks tasks={tasks} workspace="work" />
 
       {/* KPI-fliser */}
       <motion.div
