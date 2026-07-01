@@ -30,7 +30,7 @@ export default function AuthLayout({
 
       <div className="w-full max-w-sm">
         <div className="mb-7 flex flex-col items-center text-center">
-          <Logo size={56} className="mb-4" />
+          <Logo size={100} className="mb-4" />
           <h1 className="text-2xl font-semibold tracking-tight">
             {siteConfig.name}
           </h1>
