@@ -22,7 +22,11 @@ export default async function PrivatPage() {
   const tasks = bucketOrder
     .flatMap((b) => taskBuckets[b])
     .filter((t) => t.workspace !== "work");
-  const actionGroups = buildActionList(tasks, mails, "private");
+  // Action-listen må ALDRIG blande arbejds-mail ind – eksplicit ekskludering
+  // af Outlook ud over workspace-filteret, så det ikke afhænger af en
+  // implicit antagelse.
+  const actionMails = mails.filter((m) => m.source !== "outlook");
+  const actionGroups = buildActionList(tasks, actionMails, "private");
 
   return <PrivatOverview events={events} mails={mails} actionGroups={actionGroups} />;
 }

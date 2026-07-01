@@ -27,7 +27,10 @@ export default async function StorgaardBilerPage() {
   const tasks = bucketOrder
     .flatMap((b) => taskBuckets[b])
     .filter((t) => t.workspace === "work");
-  const actionGroups = buildActionList(tasks, mails, "work");
+  // Action-listen må ALDRIG blande Gmail/privat ind – eksplicit Outlook-filter
+  // ud over workspace-filteret, så det ikke afhænger af en implicit antagelse.
+  const actionMails = mails.filter((m) => m.source === "outlook");
+  const actionGroups = buildActionList(tasks, actionMails, "work");
 
   return (
     <StorgaardOverview
