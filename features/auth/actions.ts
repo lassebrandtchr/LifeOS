@@ -122,8 +122,14 @@ export async function requestPasswordReset(
   const supabase = await createClient();
   const siteUrl = await getSiteUrl();
 
+  // Bemærk: selve nulstillingslinket i mailen (Supabase-skabelonen) SKAL pege
+  // direkte på "${siteUrl}/nulstil-kodeord?token_hash={{ .TokenHash }}&type=recovery"
+  // (ikke Supabases egen /auth/v1/verify-adresse). Ellers kan mailscannere
+  // (Outlook Safe Links, Gmail m.fl.), der automatisk åbner links for at
+  // tjekke dem, forbruge engangskoden, før brugeren selv når at klikke.
+  // Se features/auth/README-nulstil-kodeord.md for præcis skabelontekst.
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
-    redirectTo: `${siteUrl}/auth/callback?next=/nulstil-kodeord`,
+    redirectTo: `${siteUrl}/nulstil-kodeord`,
   });
 
   if (error) return { error: translateAuthError(error.message) };
@@ -146,14 +152,25 @@ export async function resetPassword(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const supabase = await createClient();
-  // Brugeren har en midlertidig session fra nulstillingslinket (via /auth/callback).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const tokenHash = formData.get("token_hash");
+  if (typeof tokenHash !== "string" || !tokenHash) {
     return {
-      error: "Linket er udløbet. Bed om et nyt nulstillingslink.",
+      error: "Linket er ugyldigt. Bed om et nyt nulstillingslink.",
+    };
+  }
+
+  const supabase = await createClient();
+
+  // Verificerer engangskoden HER – udløst af et rigtigt formular-indsend
+  // (brugeren har udfyldt kodeord + trykket "Gem"), ikke af et automatisk
+  // GET-kald fra en mailscanner. Det gør flowet robust mod link-forscanning.
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "recovery",
+  });
+  if (verifyError) {
+    return {
+      error: "Linket er udløbet eller allerede brugt. Bed om et nyt nulstillingslink.",
     };
   }
 
