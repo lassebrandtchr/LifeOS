@@ -23,11 +23,15 @@ import { siteConfig } from "@/config/site";
 import { focusTasks } from "@/features/dashboard/data";
 import { storgaardActions, privatActions } from "@/config/quick-actions";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
+import { WeatherChip } from "@/components/dashboard/weather-chip";
+import type { WeatherSnapshot } from "@/lib/weather/types";
 import {
   getEmailDetail,
   sendEmailReply,
   type EmailDetail,
 } from "@/features/mail/actions";
+
+type WeatherByLocation = { bramming: WeatherSnapshot | null; ribe: WeatherSnapshot | null };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,9 +76,11 @@ const wsBadge = {
 function DashboardHeader({
   greeting,
   isWork,
+  weather,
 }: {
   greeting: GreetingResult;
   isWork: boolean;
+  weather: WeatherByLocation;
 }) {
   const dateStr = todayDateStr();
   const capitalised = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
@@ -109,15 +115,23 @@ function DashboardHeader({
             {greeting.text}, {siteConfig.owner} {greeting.emoji}
           </h1>
         </div>
-        <span
-          className={cn(
-            "mt-1 shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]",
-            !isWork && "bg-white/20",
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span
+            className={cn(
+              "mt-1 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]",
+              !isWork && "bg-white/20",
+            )}
+            style={isWork ? { backgroundColor: "rgba(9, 46, 27, 0.9)" } : undefined}
+          >
+            {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
+          </span>
+          {(weather.bramming || weather.ribe) && (
+            <div className="flex items-center gap-1.5">
+              <WeatherChip label="Bramming" snapshot={weather.bramming} />
+              <WeatherChip label="Ribe" snapshot={weather.ribe} />
+            </div>
           )}
-          style={isWork ? { backgroundColor: "rgba(9, 46, 27, 0.9)" } : undefined}
-        >
-          {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
-        </span>
+        </div>
       </div>
     </div>
   );
@@ -807,9 +821,11 @@ function FokusPanel({
 export function JarvisDashboard({
   greeting,
   data,
+  weather,
 }: {
   greeting: GreetingResult;
   data: DashboardData;
+  weather: WeatherByLocation;
 }) {
   const { stats, emails, todayEvents, tomorrowEvents, unreadCount } = data;
   const isWork = greeting.isWorkHours;
@@ -858,7 +874,7 @@ export function JarvisDashboard({
   return (
     <>
       <div className="mx-auto max-w-5xl space-y-4">
-        <DashboardHeader greeting={greeting} isWork={isWork} />
+        <DashboardHeader greeting={greeting} isWork={isWork} weather={weather} />
 
         <DayBriefing
           unread={visibleUnread}
