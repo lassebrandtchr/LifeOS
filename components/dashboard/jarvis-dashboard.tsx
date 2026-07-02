@@ -24,7 +24,9 @@ import { focusTasks } from "@/features/dashboard/data";
 import { storgaardActions, privatActions } from "@/config/quick-actions";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { WeatherChip } from "@/components/dashboard/weather-chip";
+import { ActionList } from "@/components/dashboard/action-list";
 import type { WeatherSnapshot } from "@/lib/weather/types";
+import type { ActionListGroups } from "@/features/dashboard/action-list";
 import {
   getEmailDetail,
   sendEmailReply,
@@ -32,6 +34,7 @@ import {
 } from "@/features/mail/actions";
 
 type WeatherByLocation = { bramming: WeatherSnapshot | null; ribe: WeatherSnapshot | null };
+type ActionGroupsByWorkspace = { work: ActionListGroups; private: ActionListGroups };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,11 +120,8 @@ function DashboardHeader({
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span
-            className={cn(
-              "mt-1 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]",
-              !isWork && "bg-white/20",
-            )}
-            style={isWork ? { backgroundColor: "rgba(9, 46, 27, 0.9)" } : undefined}
+            className="mt-1 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]"
+            style={{ backgroundColor: "rgba(9, 46, 27, 0.9)" }}
           >
             {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
           </span>
@@ -822,10 +822,12 @@ export function JarvisDashboard({
   greeting,
   data,
   weather,
+  actionGroups,
 }: {
   greeting: GreetingResult;
   data: DashboardData;
   weather: WeatherByLocation;
+  actionGroups: ActionGroupsByWorkspace;
 }) {
   const { stats, emails, todayEvents, tomorrowEvents, unreadCount } = data;
   const isWork = greeting.isWorkHours;
@@ -890,6 +892,16 @@ export function JarvisDashboard({
             Privat ud fra arbejdstid (samme knapper som på undersiderne), i
             samme bredde som Arbejdsoverblik ovenover, men mere kompakte kasser. */}
         <PageQuickActions actions={isWork ? storgaardActions : privatActions} />
+
+        {/* Lille udgave af Action-listen – samme data/logik som undersiderne,
+            skifter automatisk mellem arbejde og privat ud fra arbejdstid,
+            med et link videre til hele listen. */}
+        <ActionList
+          groups={isWork ? actionGroups.work : actionGroups.private}
+          workspace={isWork ? "work" : "private"}
+          limit={4}
+          viewAllHref={isWork ? "/storgaard-biler" : "/privat"}
+        />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <InboxCard emails={visibleEmails} isWork={isWork} onEmailClick={setSelectedEmail} />

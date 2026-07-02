@@ -239,20 +239,24 @@ export async function syncNotionPagesCore(
 ): Promise<SyncResult> {
   try {
     const pages = await searchNotion(token, 50);
-    await supabase.from("notion_items").delete().eq("user_id", userId);
-    if (pages.length > 0) {
-      const rows = pages.map((p) => ({
-        user_id: userId,
-        external_id: p.id,
-        title: p.title,
-        type: p.type,
-        url: p.url,
-        snippet: p.snippet,
-        edited_at: p.editedISO,
-        workspace: "work",
-      }));
-      await supabase.from("notion_items").insert(rows);
+    // SIKKERHEDSLÅS (samme mønster som kalender-synken): ryd kun + genindsæt
+    // hvis vi rent faktisk hentede noget. Ellers ville en tom/fejlende
+    // Notion-hentning kunne slette alt uden at gemme noget nyt.
+    if (pages.length === 0) {
+      return { source: "notion_pages", ok: true, count: 0 };
     }
+    await supabase.from("notion_items").delete().eq("user_id", userId);
+    const rows = pages.map((p) => ({
+      user_id: userId,
+      external_id: p.id,
+      title: p.title,
+      type: p.type,
+      url: p.url,
+      snippet: p.snippet,
+      edited_at: p.editedISO,
+      workspace: "work",
+    }));
+    await supabase.from("notion_items").insert(rows);
     await markSynced(supabase, userId, "notion");
     return { source: "notion_pages", ok: true, count: pages.length };
   } catch {

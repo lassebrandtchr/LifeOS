@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Phone, Mail, ListTodo, RefreshCw, Plus } from "lucide-react";
+import Link from "next/link";
+import { Check, Phone, Mail, ListTodo, RefreshCw, Plus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -19,13 +20,21 @@ const GROUP_ORDER: Exclude<Priority, "low">[] = ["urgent", "important", "can_wai
 /**
  * Action-liste – prioriteret overblik (Haster/Vigtigt/Kan vente), kombineret
  * fra opgaver + indbakke-mail. Erstatter den tidligere WorkspaceTasks-boks.
+ *
+ * `limit` + `viewAllHref`: bruges af forsidens lille udgave (lige under
+ * "Hurtige handlinger") til kun at vise de vigtigste linjer, med et link til
+ * hele listen på undersiden – uden at duplikere UI'et/logikken.
  */
 export function ActionList({
   groups,
   workspace,
+  limit,
+  viewAllHref,
 }: {
   groups: ActionListGroups;
   workspace: Workspace;
+  limit?: number;
+  viewAllHref?: string;
 }) {
   const router = useRouter();
   const [removedTaskIds, setRemovedTaskIds] = useState<ReadonlySet<string>>(new Set());
@@ -54,6 +63,17 @@ export function ActionList({
   };
   const total = visible.urgent.length + visible.important.length + visible.can_wait.length;
 
+  // Skær ned til `limit` linjer i alt (Haster går forud for Vigtigt, som går
+  // forud for Kan vente), uden at ændre den underliggende rækkefølge.
+  let remaining = limit ?? Infinity;
+  const shown: Record<Exclude<Priority, "low">, ActionItem[]> = { urgent: [], important: [], can_wait: [] };
+  for (const key of GROUP_ORDER) {
+    if (remaining <= 0) break;
+    shown[key] = visible[key].slice(0, remaining);
+    remaining -= shown[key].length;
+  }
+  const hiddenCount = total - (shown.urgent.length + shown.important.length + shown.can_wait.length);
+
   return (
     <SectionCard title="Action-liste" icon={ListTodo}>
       <div className="mb-3 flex items-center justify-between">
@@ -78,7 +98,7 @@ export function ActionList({
       ) : (
         <div className="space-y-4">
           {GROUP_ORDER.map((key) => {
-            const list = visible[key];
+            const list = shown[key];
             if (list.length === 0) return null;
             return (
               <div key={key}>
@@ -89,7 +109,7 @@ export function ActionList({
                   )}
                 >
                   <span className={cn("size-1.5 rounded-full", priorities[key].dot)} />
-                  {priorities[key].label} · {list.length}
+                  {priorities[key].label} · {visible[key].length}
                 </p>
                 <ul className="space-y-0.5">
                   {list.map((item) => (
@@ -105,6 +125,16 @@ export function ActionList({
             );
           })}
         </div>
+      )}
+
+      {viewAllHref && (hiddenCount > 0 || total > 0) && (
+        <Link
+          href={viewAllHref}
+          className="mt-3 flex items-center justify-center gap-1.5 rounded-lg border border-border/60 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          {hiddenCount > 0 ? `Se hele listen (${hiddenCount} mere)` : "Se hele listen"}
+          <ArrowRight className="size-3.5" />
+        </Link>
       )}
     </SectionCard>
   );

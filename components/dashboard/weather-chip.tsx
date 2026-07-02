@@ -18,11 +18,12 @@ export function WeatherChip({
   return (
     <div
       title={`${label}: ${weatherLabel}, ${snapshot.tempC}°`}
-      className="flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/90 ring-1 ring-white/15 backdrop-blur-md"
+      className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-white ring-1 ring-white/15 backdrop-blur-md"
+      style={{ backgroundColor: "rgba(9, 46, 27, 0.65)" }}
     >
       <span aria-hidden>{emoji}</span>
       <span className="font-semibold tabular-nums">{snapshot.tempC}°</span>
-      <span className="text-white/70">{label}</span>
+      <span className="text-white/80">{label}</span>
     </div>
   );
 }
