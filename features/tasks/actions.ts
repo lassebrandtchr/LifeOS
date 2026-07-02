@@ -35,7 +35,7 @@ export async function searchAction(query: string) {
  */
 
 export type ActionState =
-  | { ok?: boolean; error?: string; task?: Task }
+  | { ok?: boolean; error?: string; warning?: string; task?: Task }
   | undefined;
 
 const NOT_READY =
@@ -384,11 +384,30 @@ export async function updateTask(
   }
 
   try {
-    const { error } = await auth.supabase
+    let { error } = await auth.supabase
       .from("tasks")
       .update(update)
       .eq("id", id)
       .eq("user_id", auth.userId);
+
+    // Migration 0011 (kolonnen "trade_in") er måske ikke kørt i Supabase
+    // endnu – lad ikke det blokere resten af opgaven (titel/deadline/status
+    // osv.) fra at blive gemt. Prøv igen uden feltet, og fortæl hvorfor.
+    if (error?.code === "42703" && "trade_in" in update) {
+      delete update.trade_in;
+      const retry = await auth.supabase
+        .from("tasks")
+        .update(update)
+        .eq("id", id)
+        .eq("user_id", auth.userId);
+      error = retry.error;
+      if (!error) {
+        return {
+          ok: true,
+          warning: "Byttebil blev ikke gemt – kør migration 0011 i Supabase.",
+        };
+      }
+    }
     if (error) return { error: error.message };
 
     if (fields.status === "done") {

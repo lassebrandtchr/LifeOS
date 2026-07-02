@@ -106,6 +106,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       if (res?.error) toast.error(res.error);
                       else {
                         toast.success("Opgave gemt ✓");
+                        if (res?.warning) toast.warning(res.warning);
                         close();
                         router.refresh();
                       }
