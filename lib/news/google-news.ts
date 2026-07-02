@@ -122,9 +122,19 @@ const DA_LOCALE = { hl: "da", gl: "DK", ceid: "DK:da" };
 // Lasses foretrukne danske medier – prøves FØRST, uanset emne. Kun ægte
 // .dk-redaktioner her; techradar.com er en global .com-side UDEN en
 // garanteret dansk udgave (viste sig i praksis at levere norsk/svensk
-// indhold selv med hl=da&gl=DK) – den bruges i stedet som et ekstra,
-// foretrukket bud i det engelske fallback-lag længere nede.
-const DANISH_SITES = ["meremobil.dk", "inputmag.dk", "recordere.dk", "hvilkenbil.dk"];
+// indhold selv med hl=da&gl=DK – testet direkte: "Beste tegnebrett",
+// "Slik velger du riktig" er norske stavemåder, ikke danske) – den bruges
+// i stedet som et ekstra, foretrukket bud i det engelske fallback-lag
+// længere nede, aldrig som en "dansk" kilde.
+const DANISH_SITES = [
+  "meremobil.dk",
+  "inputmag.dk",
+  "recordere.dk",
+  "hvilkenbil.dk",
+  "fdm.dk",
+  "bilmagasinet.dk",
+  "ekstrabladet.dk",
+];
 const DANISH_SITE_FILTER = `(${DANISH_SITES.map((s) => `site:${s}`).join(" OR ")})`;
 const RESERVE_GLOBAL_SITE = "techradar.com";
 
