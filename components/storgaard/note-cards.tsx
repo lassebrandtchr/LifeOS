@@ -43,12 +43,6 @@ function parseStack(raw: string): StackItem[] {
   return [];
 }
 
-function stackPreviewText(raw: string): string | null {
-  const items = parseStack(raw).filter((i) => i.text.trim());
-  if (items.length === 0) return null;
-  return items.length === 1 ? items[0].text : `${items.length} ting noteret`;
-}
-
 /**
  * Noter – lille Notion-inspireret galleri af faste note-kasser (se
  * config/note-cards.ts). Hver kasse har et "genereret" omslag (farvet
@@ -84,17 +78,18 @@ export function NoteCards({
         className="grid grid-cols-2 gap-4 lg:grid-cols-4"
       >
         {cards.map((card) => {
-          const preview =
-            card.mode === "stack"
-              ? stackPreviewText(bodies[card.title] ?? "")
-              : bodies[card.title] || null;
+          const isStack = card.mode === "stack";
+          const stackCount = isStack
+            ? parseStack(bodies[card.title] ?? "").filter((i) => i.text.trim()).length
+            : 0;
+          const preview = isStack ? null : bodies[card.title] || null;
           return (
             <motion.button
               key={card.title}
               type="button"
               variants={item}
               onClick={() => setOpenCard(card)}
-              className="group flex flex-col overflow-hidden rounded-card border border-border/70 bg-card text-left shadow-soft transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-1 hover:shadow-soft-lg"
+              className="group relative flex flex-col overflow-hidden rounded-card border border-border/70 bg-card text-left shadow-soft transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-1 hover:shadow-soft-lg"
             >
               <NoteCardCover color={card.color} icon={card.icon} />
               <div className="flex flex-1 flex-col gap-1 p-3.5">
@@ -106,6 +101,11 @@ export function NoteCards({
                   <p className="line-clamp-1 text-xs text-muted-foreground">{preview}</p>
                 )}
               </div>
+              {stackCount > 0 && (
+                <span className="absolute bottom-2.5 right-3 text-sm font-bold text-success">
+                  {stackCount}
+                </span>
+              )}
             </motion.button>
           );
         })}
