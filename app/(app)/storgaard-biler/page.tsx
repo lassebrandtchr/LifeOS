@@ -4,19 +4,22 @@ import { getCalendarEvents, getMailMessages } from "@/features/integrations/quer
 import { getTasksByBucket } from "@/features/tasks/queries";
 import { bucketOrder } from "@/features/tasks/constants";
 import { buildActionList } from "@/features/dashboard/action-list";
+import { getNoteCardBodies } from "@/features/notes/actions";
+import { storgaardNoteCards } from "@/config/note-cards";
 
 export const metadata = { title: "Storgaard Biler" };
 
 /**
- * Storgaard Biler – samler ALT arbejde ét sted: nøgletal + grafer, kommende
+ * Storgaard Biler – samler ALT arbejde ét sted: noter, grafer, kommende
  * arbejdsaftaler og seneste arbejdsmails (alt filtreret til verden 'work').
  */
 export default async function StorgaardBilerPage() {
-  const [stats, allEvents, allMails, taskBuckets] = await Promise.all([
+  const [stats, allEvents, allMails, taskBuckets, noteBodies] = await Promise.all([
     getStorgaardStats(),
     getCalendarEvents(200),
     getMailMessages(50),
     getTasksByBucket(),
+    getNoteCardBodies("work", storgaardNoteCards.map((c) => c.title)),
   ]);
 
   const now = new Date().toISOString();
@@ -38,6 +41,7 @@ export default async function StorgaardBilerPage() {
       events={events}
       mails={mails}
       actionGroups={actionGroups}
+      noteBodies={noteBodies}
     />
   );
 }

@@ -1,23 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { motion, type Variants } from "framer-motion";
-import {
-  Car,
-  Users,
-  Tag,
-  Megaphone,
-  AlertTriangle,
-  BarChart3,
-  type LucideIcon,
-} from "lucide-react";
+import { Car, BarChart3 } from "lucide-react";
 
 import { SectionCard } from "@/components/dashboard/section-card";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
 import { ActionList } from "@/components/dashboard/action-list";
+import { NoteCards } from "@/components/storgaard/note-cards";
 import { BarList } from "@/components/ui/chart";
 import { storgaardActions } from "@/config/quick-actions";
+import { storgaardNoteCards } from "@/config/note-cards";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
@@ -38,19 +31,14 @@ export function StorgaardOverview({
   events,
   mails,
   actionGroups,
+  noteBodies,
 }: {
   stats: StorgaardStats;
   events: CalendarEventItem[];
   mails: MailMessage[];
   actionGroups: ActionListGroups;
+  noteBodies: Record<string, string>;
 }) {
-  const kpis: { label: string; value: number; icon: LucideIcon; color: string }[] = [
-    { label: "Aktive leads", value: stats.leads, icon: Users, color: "var(--primary)" },
-    { label: "Tilbud & finansiering", value: stats.tilbud, icon: Tag, color: "var(--accent-private)" },
-    { label: "Markedsføring", value: stats.markedsfoering, icon: Megaphone, color: "var(--success)" },
-    { label: "Forfaldne", value: stats.overdue, icon: AlertTriangle, color: "var(--destructive)" },
-  ];
-
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Header */}
@@ -75,36 +63,8 @@ export function StorgaardOverview({
       {/* Action-liste – prioriteret, kombineret fra opgaver + Outlook-indbakke */}
       <ActionList groups={actionGroups} workspace="work" />
 
-      {/* KPI-fliser */}
-      <motion.div
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="grid grid-cols-2 gap-4 lg:grid-cols-4"
-      >
-        {kpis.map((k) => {
-          const Icon = k.icon;
-          return (
-            <motion.div key={k.label} variants={item}>
-              <Link
-                href="/opgaver"
-                className="group relative flex h-full flex-col gap-3 overflow-hidden rounded-card border border-border/70 bg-card p-5 shadow-soft transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-1 hover:border-primary/30 hover:shadow-soft-lg"
-              >
-                <span
-                  className="flex size-10 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-110"
-                  style={{ backgroundColor: `color-mix(in oklab, ${k.color} 14%, transparent)`, color: k.color }}
-                >
-                  <Icon className="size-5" />
-                </span>
-                <div>
-                  <div className="text-3xl font-semibold tabular-nums leading-none">{k.value}</div>
-                  <div className="mt-1.5 text-sm text-muted-foreground">{k.label}</div>
-                </div>
-              </Link>
-            </motion.div>
-          );
-        })}
-      </motion.div>
+      {/* Noter – faste note-kasser (morgenmøde, ugemøde, salgsprocesser, årsoversigt) */}
+      <NoteCards cards={storgaardNoteCards} initialBodies={noteBodies} />
 
       {/* Grafer */}
       <motion.div
