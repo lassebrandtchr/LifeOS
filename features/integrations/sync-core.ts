@@ -197,8 +197,10 @@ export async function syncOutlookCalendarCore(
     await supabase.from("calendar_events").insert(rows);
     await markSynced(supabase, userId, "outlook_calendar");
     return { source: "outlook_calendar", ok: true, count: rows.length };
-  } catch {
-    return { source: "outlook_calendar", ok: false, error: "Synk fejlede." };
+  } catch (e) {
+    // listOutlookEvents kaster nu en rigtig fejl ved et fejlet API-kald
+    // (samme rettelse som Gmail/Outlook mail), så den bliver fanget her.
+    return { source: "outlook_calendar", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }
 
@@ -229,8 +231,11 @@ export async function syncOutlookMailCore(
     await supabase.from("emails").insert(rows);
     await markSynced(supabase, userId, "outlook_mail");
     return { source: "outlook_mail", ok: true, count: rows.length };
-  } catch {
-    return { source: "outlook_mail", ok: false, error: "Synk fejlede." };
+  } catch (e) {
+    // Samme rettelse som Gmail: listOutlookMessages kaster nu en rigtig
+    // fejl ved et fejlet API-kald, i stedet for at et fejlet kald blev
+    // fortolket som "tom indbakke" og lod en forældet cache stå uændret.
+    return { source: "outlook_mail", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }
 
@@ -262,8 +267,11 @@ export async function syncNotionPagesCore(
     await supabase.from("notion_items").insert(rows);
     await markSynced(supabase, userId, "notion");
     return { source: "notion_pages", ok: true, count: pages.length };
-  } catch {
-    return { source: "notion_pages", ok: false, error: "Synk fejlede." };
+  } catch (e) {
+    // searchNotion kaster nu en rigtig fejl ved et fejlet kald (samme
+    // rettelse som Gmail/Outlook), så den bliver fanget her i stedet for
+    // at blive fortolket som "ingen sider fundet".
+    return { source: "notion_pages", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }
 
@@ -382,7 +390,10 @@ export async function syncNotionTasksCore(
 
     await markSynced(supabase, userId, "notion");
     return { source: "notion_tasks", ok: true, count: toInsert.length + updated };
-  } catch {
-    return { source: "notion_tasks", ok: false, error: "Synk fejlede." };
+  } catch (e) {
+    // queryNotionDatabase kaster nu en rigtig fejl, hvis selv første side af
+    // en database ikke kunne læses (samme rettelse som Gmail/Outlook), så
+    // den bliver fanget her i stedet for at blive fortolket som "0 opgaver".
+    return { source: "notion_tasks", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }

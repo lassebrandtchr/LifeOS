@@ -62,34 +62,39 @@ function extractTitle(obj: Record<string, unknown>): string {
   return "(uden titel)";
 }
 
-/** Søger i de sider/databaser, integrationen har adgang til. */
+/**
+ * Søger i de sider/databaser, integrationen har adgang til.
+ *
+ * Kaster en fejl ved et fejlet kald (samme rettelse som Gmail/Outlook) i
+ * stedet for at returnere en tom liste – ellers fortolker
+ * syncNotionPagesCore et fejlet kald som "ingen sider fundet" og lader den
+ * gamle cache stå urørt uden at nogen fejl vises.
+ */
 export async function searchNotion(
   token: string,
   limit = 50,
 ): Promise<NotionPage[]> {
-  try {
-    const res = await fetch(`${BASE}/search`, {
-      method: "POST",
-      headers: headers(token),
-      body: JSON.stringify({
-        page_size: limit,
-        sort: { direction: "descending", timestamp: "last_edited_time" },
-      }),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const results = (data.results ?? []) as Record<string, unknown>[];
-    return results.map((r) => ({
-      id: r.id as string,
-      title: extractTitle(r),
-      url: (r.url as string) ?? null,
-      type: (r.object as string) ?? "page",
-      snippet: null,
-      editedISO: (r.last_edited_time as string) ?? null,
-    }));
-  } catch {
-    return [];
+  const res = await fetch(`${BASE}/search`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({
+      page_size: limit,
+      sort: { direction: "descending", timestamp: "last_edited_time" },
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion-søgning fejlede (${res.status})`);
   }
+  const data = await res.json();
+  const results = (data.results ?? []) as Record<string, unknown>[];
+  return results.map((r) => ({
+    id: r.id as string,
+    title: extractTitle(r),
+    url: (r.url as string) ?? null,
+    type: (r.object as string) ?? "page",
+    snippet: null,
+    editedISO: (r.last_edited_time as string) ?? null,
+  }));
 }
 
 // ─────────────────────────── Databaser & rækker ──────────────────────────
@@ -133,6 +138,12 @@ export type NotionRow = {
 /**
  * Henter ALLE rækker fra en database (følger paginering automatisk).
  * Returnerer den rå "properties" pr. række – mapping sker et andet sted.
+ *
+ * Fejler FØRSTE side (page 0) kaldet, kastes en fejl – det betyder at
+ * databasen slet ikke kunne læses (fx udløbet token), og skal IKKE
+ * fortolkes som "0 rækker" af syncNotionTasksCore. Fejler en SENERE side
+ * (efter vi allerede har fået noget brugbart), stoppes der bare med det vi
+ * nåede – mere robust end at kaste alt væk pga. én sen side.
  */
 export async function queryNotionDatabase(
   token: string,
@@ -140,32 +151,47 @@ export async function queryNotionDatabase(
 ): Promise<NotionRow[]> {
   const rows: NotionRow[] = [];
   let cursor: string | undefined;
+
+  async function fetchPage(): Promise<{ results: Record<string, unknown>[]; has_more: boolean; next_cursor: string | null }> {
+    const res = await fetch(`${BASE}/databases/${databaseId}/query`, {
+      method: "POST",
+      headers: headers(token),
+      body: JSON.stringify({
+        page_size: 100,
+        ...(cursor ? { start_cursor: cursor } : {}),
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`Notion database-forespørgsel fejlede (${res.status})`);
+    }
+    return res.json();
+  }
+
   // Sikkerhedsloft: max 10 sider à 100 = 1000 rækker.
   for (let page = 0; page < 10; page++) {
-    try {
-      const res = await fetch(`${BASE}/databases/${databaseId}/query`, {
-        method: "POST",
-        headers: headers(token),
-        body: JSON.stringify({
-          page_size: 100,
-          ...(cursor ? { start_cursor: cursor } : {}),
-        }),
-      });
-      if (!res.ok) break;
-      const data = await res.json();
-      const results = (data.results ?? []) as Record<string, unknown>[];
-      for (const r of results) {
-        rows.push({
-          id: r.id as string,
-          properties: (r.properties as Record<string, unknown>) ?? {},
-        });
+    let data;
+    if (page === 0) {
+      // Side 0 må ALDRIG fejle stille – det betyder databasen slet ikke
+      // kunne læses, og skal ikke fortolkes som "0 rækker" af kalderen.
+      data = await fetchPage();
+    } else {
+      // En senere side, der fejler, stopper vi bare med det vi allerede
+      // har – mere robust end at kaste alt væk pga. én sen side.
+      try {
+        data = await fetchPage();
+      } catch {
+        break;
       }
-      if (!data.has_more) break;
-      cursor = data.next_cursor as string;
-      if (!cursor) break;
-    } catch {
-      break;
     }
+    for (const r of data.results ?? []) {
+      rows.push({
+        id: r.id as string,
+        properties: (r.properties as Record<string, unknown>) ?? {},
+      });
+    }
+    if (!data.has_more) break;
+    cursor = data.next_cursor as string;
+    if (!cursor) break;
   }
   return rows;
 }

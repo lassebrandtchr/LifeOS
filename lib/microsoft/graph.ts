@@ -17,7 +17,15 @@ export type OutlookMessage = {
   receivedISO: string | null;
 };
 
-/** Henter de seneste mails fra Outlook-indbakken. */
+/**
+ * Henter de seneste mails fra Outlook-indbakken.
+ *
+ * VIGTIGT: kaster en fejl hvis selve liste-kaldet fejler (fx udløbet token)
+ * i stedet for at returnere en tom liste – ellers fortolker syncOutlookMailCore
+ * det som "indbakken er reelt tom" og lader en forældet cache stå urørt,
+ * uden at nogen fejl nogensinde vises (samme fejl som blev fundet i Gmail-
+ * synken – rettet her af samme grund).
+ */
 export async function listOutlookMessages(
   accessToken: string,
   top = 30,
@@ -27,31 +35,29 @@ export async function listOutlookMessages(
     $select: "subject,bodyPreview,from,isRead,receivedDateTime",
     $orderby: "receivedDateTime desc",
   });
-  try {
-    const res = await fetch(
-      `${GRAPH}/me/mailFolders/inbox/messages?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-    const items = (data.value ?? []) as Record<string, unknown>[];
-    return items.map((m) => {
-      const from = m.from as
-        | { emailAddress?: { address?: string; name?: string } }
-        | undefined;
-      const addr = from?.emailAddress;
-      return {
-        id: m.id as string,
-        subject: (m.subject as string) ?? "(uden emne)",
-        snippet: (m.bodyPreview as string) ?? "",
-        from: addr?.name ?? addr?.address ?? null,
-        isRead: Boolean(m.isRead),
-        receivedISO: (m.receivedDateTime as string) ?? null,
-      };
-    });
-  } catch {
-    return [];
+  const res = await fetch(
+    `${GRAPH}/me/mailFolders/inbox/messages?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    throw new Error(`Outlook mail-listekald fejlede (${res.status})`);
   }
+  const data = await res.json();
+  const items = (data.value ?? []) as Record<string, unknown>[];
+  return items.map((m) => {
+    const from = m.from as
+      | { emailAddress?: { address?: string; name?: string } }
+      | undefined;
+    const addr = from?.emailAddress;
+    return {
+      id: m.id as string,
+      subject: (m.subject as string) ?? "(uden emne)",
+      snippet: (m.bodyPreview as string) ?? "",
+      from: addr?.name ?? addr?.address ?? null,
+      isRead: Boolean(m.isRead),
+      receivedISO: (m.receivedDateTime as string) ?? null,
+    };
+  });
 }
 
 export type OutlookEvent = {
@@ -80,36 +86,34 @@ export async function listOutlookEvents(
     $orderby: "start/dateTime",
     $top: "250",
   });
-  try {
-    const res = await fetch(`${GRAPH}/me/calendarView?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        // Få start/end leveret i dansk tid frem for UTC.
-        Prefer: 'outlook.timezone="Europe/Copenhagen"',
-      },
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const items = (data.value ?? []) as Record<string, unknown>[];
-    return items.map((e) => {
-      const start = e.start as { dateTime?: string } | undefined;
-      const end = e.end as { dateTime?: string } | undefined;
-      const loc = e.location as { displayName?: string } | undefined;
-      // Graph leverer dateTime UDEN offset når Prefer-tidszonen er sat → tilføj
-      // en +02:00/+01:00-agtig markør ved at lade Date tolke som lokal tid.
-      const toISO = (dt?: string) =>
-        dt ? new Date(dt.endsWith("Z") ? dt : `${dt}`).toISOString() : null;
-      return {
-        id: e.id as string,
-        subject: (e.subject as string) ?? "(uden titel)",
-        description: (e.bodyPreview as string) ?? null,
-        location: loc?.displayName ?? null,
-        startISO: toISO(start?.dateTime),
-        endISO: toISO(end?.dateTime),
-        allDay: Boolean(e.isAllDay),
-      };
-    });
-  } catch {
-    return [];
+  const res = await fetch(`${GRAPH}/me/calendarView?${params.toString()}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      // Få start/end leveret i dansk tid frem for UTC.
+      Prefer: 'outlook.timezone="Europe/Copenhagen"',
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Outlook kalender-listekald fejlede (${res.status})`);
   }
+  const data = await res.json();
+  const items = (data.value ?? []) as Record<string, unknown>[];
+  return items.map((e) => {
+    const start = e.start as { dateTime?: string } | undefined;
+    const end = e.end as { dateTime?: string } | undefined;
+    const loc = e.location as { displayName?: string } | undefined;
+    // Graph leverer dateTime UDEN offset når Prefer-tidszonen er sat → tilføj
+    // en +02:00/+01:00-agtig markør ved at lade Date tolke som lokal tid.
+    const toISO = (dt?: string) =>
+      dt ? new Date(dt.endsWith("Z") ? dt : `${dt}`).toISOString() : null;
+    return {
+      id: e.id as string,
+      subject: (e.subject as string) ?? "(uden titel)",
+      description: (e.bodyPreview as string) ?? null,
+      location: loc?.displayName ?? null,
+      startISO: toISO(start?.dateTime),
+      endISO: toISO(end?.dateTime),
+      allDay: Boolean(e.isAllDay),
+    };
+  });
 }
