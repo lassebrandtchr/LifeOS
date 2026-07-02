@@ -78,6 +78,21 @@ function withinMaxAge(item: NewsItem): boolean {
   return Date.now() - new Date(item.publishedAt).getTime() <= MAX_AGE_MS;
 }
 
+/**
+ * Fanger svensk/norsk indhold, der er sluppet igennem trods hl=da&gl=DK –
+ * globale/.com-sites (fx techradar.com) har ofte ikke en ægte dansk
+ * redaktion, og Google returnerer så bare hvad der ranker bedst i den
+ * skandinaviske sprogfamilie. æ/ø/å alene siger intet (fælles med norsk),
+ * så filteret kombinerer entydige svenske tegn/ord med en liste af
+ * norske stavemåder, der IKKE findes på dansk (fx "kjøre" vs. "køre").
+ */
+const NON_DANISH_PATTERN =
+  /[äö]|\b(och|inte|även|också|mycket|väldigt|något|allt|bara|kanske)\b|\b(kjøre\w*|sannsynligvis|dessverre|veldig|riktig|skje\w*|øyeblikk\w*|spennende|heltid|ganger|ikkje)\b/i;
+
+function looksDanish(item: NewsItem): boolean {
+  return !NON_DANISH_PATTERN.test(item.title);
+}
+
 async function fetchGoogleNews(
   query: string,
   limit: number,
@@ -91,10 +106,11 @@ async function fetchGoogleNews(
     const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS }, redirect: "follow" });
     if (!res.ok) return [];
     const xml = await res.text();
-    // Parse flere end "limit" råt, FØR alders-filteret trækker nogle fra –
-    // ellers kan for-tidlig afskæring fjerne friske artikler der lå senere
-    // i feedet end de første (ofte ældre) "limit" resultater.
-    return parseGoogleNewsRss(xml, limit * 3).filter(withinMaxAge).slice(0, limit);
+    // Parse et godt stykke flere end "limit" råt, FØR alders-/sprogfilteret
+    // trækker nogle fra – Google's feed kan sagtens indeholde 100 hits, og
+    // for lav grænse her risikerer at skære alle de friske/danske fra, hvis
+    // de ligger langt nede i feedet.
+    return parseGoogleNewsRss(xml, limit * 10).filter(withinMaxAge).slice(0, limit);
   } catch {
     return [];
   }
@@ -103,38 +119,68 @@ async function fetchGoogleNews(
 const EN_LOCALE = { hl: "en-US", gl: "US", ceid: "US:en" };
 const DA_LOCALE = { hl: "da", gl: "DK", ceid: "DK:da" };
 
-// Lasses foretrukne danske medier – prøves FØRST, uanset emne.
-const DANISH_SITES = [
-  "meremobil.dk",
-  "inputmag.dk",
-  "recordere.dk",
-  "techradar.com",
-  "hvilkenbil.dk",
-];
+// Lasses foretrukne danske medier – prøves FØRST, uanset emne. Kun ægte
+// .dk-redaktioner her; techradar.com er en global .com-side UDEN en
+// garanteret dansk udgave (viste sig i praksis at levere norsk/svensk
+// indhold selv med hl=da&gl=DK) – den bruges i stedet som et ekstra,
+// foretrukket bud i det engelske fallback-lag længere nede.
+const DANISH_SITES = ["meremobil.dk", "inputmag.dk", "recordere.dk", "hvilkenbil.dk"];
 const DANISH_SITE_FILTER = `(${DANISH_SITES.map((s) => `site:${s}`).join(" OR ")})`;
+const RESERVE_GLOBAL_SITE = "techradar.com";
+
+// Lasse vil gerne høre nyt der påvirker danskere (positivt og negativt),
+// og gerne fra USA/Sverige/Norge m.fl. – men ikke Mellemøsten-konflikter,
+// som ofte matcher på ord som "elbil"/"AI" uden reelt at handle om det.
+const MIDEAST_EXCLUDE =
+  '-Iran -Iraq -Syria -Yemen -Israel -Palestine -Lebanon -Gaza -Hamas -Houthi -"Middle East" -"Saudi Arabia"';
 
 /**
- * Henter primært danske nyheder fra de foretrukne medier; suppleret med
- * globale/engelske nyheder, hvis der ikke er nok danske at vise. Deduplikeret
- * på URL, så en artikel aldrig optræder to gange. Alle nyheder skal højst
- * være 7 dage gamle – "when:7d" er en hint til Google's søgning, og
- * "withinMaxAge" i fetchGoogleNews er det egentlige sikkerhedsnet.
+ * Henter primært danske nyheder fra de foretrukne medier; suppleret med en
+ * separat, foretrukket global kilde (techradar.com) og til sidst bredere
+ * engelske/globale nyheder, hvis der stadig ikke er nok. Deduplikeret på
+ * URL. Alle tre lag hentes og filtreres UDEN Google's "when:"-operator –
+ * afprøvet i praksis at give 0 resultater når den kombineres med et
+ * "site:"-filter (uafhængigt af om filteret rammer én eller flere sites).
+ * "withinMaxAge" i fetchGoogleNews er derfor det ENESTE, der håndhæver
+ * 7-dages-grænsen. Samme mønster for sprog: "looksDanish" er
+ * sikkerhedsnettet for hl=da&gl=DK, som heller ikke er en garanti i sig selv.
  */
 async function fetchLayeredNews(
   danishTopicQuery: string,
   englishTopicQuery: string,
   limit: number,
 ): Promise<NewsItem[]> {
-  const danish = await fetchGoogleNews(
-    `${DANISH_SITE_FILTER} (${danishTopicQuery}) when:7d`,
+  const danishRaw = await fetchGoogleNews(
+    `${DANISH_SITE_FILTER} (${danishTopicQuery}) ${MIDEAST_EXCLUDE}`,
     limit,
     DA_LOCALE,
   );
-  if (danish.length >= limit) return danish.slice(0, limit);
-
+  const danish = danishRaw.filter(looksDanish);
   const seen = new Set(danish.map((d) => d.url));
-  const fallback = await fetchGoogleNews(englishTopicQuery, limit, EN_LOCALE);
   const combined = [...danish];
+  if (combined.length >= limit) return combined.slice(0, limit);
+
+  // "site:X OR (...)" i ét udtryk returnerede 0 hits i praksis – X hentes
+  // derfor som sit eget kald og merges bagefter i stedet.
+  const reserve = await fetchGoogleNews(
+    `site:${RESERVE_GLOBAL_SITE} (${englishTopicQuery}) ${MIDEAST_EXCLUDE}`,
+    limit,
+    EN_LOCALE,
+  );
+  for (const item of reserve) {
+    if (combined.length >= limit) break;
+    if (!seen.has(item.url)) {
+      combined.push(item);
+      seen.add(item.url);
+    }
+  }
+  if (combined.length >= limit) return combined.slice(0, limit);
+
+  const fallback = await fetchGoogleNews(
+    `(${englishTopicQuery}) ${MIDEAST_EXCLUDE}`,
+    limit,
+    EN_LOCALE,
+  );
   for (const item of fallback) {
     if (combined.length >= limit) break;
     if (!seen.has(item.url)) {
@@ -149,7 +195,7 @@ async function fetchLayeredNews(
 export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "elbil OR elbiler OR ladestander OR bilbranchen OR bilmærker OR bil",
-    '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations) when:7d',
+    '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations)',
     limit,
   );
 }
@@ -158,7 +204,7 @@ export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
 export async function getTechAiNews(limit = 6): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
-    '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles) when:7d',
+    '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles)',
     limit,
   );
 }
