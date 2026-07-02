@@ -66,6 +66,18 @@ function parseGoogleNewsRss(xml: string, limit: number): NewsItem[] {
   return items;
 }
 
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Ekstra sikkerhedsnet ud over Google's "when:7d"-søgeoperator, som kun er en
+ * hint til søgningen og ikke en garanti (særligt kombineret med site:-filtre).
+ * Artikler uden dato beholdes (kan ikke vurderes, men er sjældne).
+ */
+function withinMaxAge(item: NewsItem): boolean {
+  if (!item.publishedAt) return true;
+  return Date.now() - new Date(item.publishedAt).getTime() <= MAX_AGE_MS;
+}
+
 async function fetchGoogleNews(
   query: string,
   limit: number,
@@ -79,7 +91,10 @@ async function fetchGoogleNews(
     const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS }, redirect: "follow" });
     if (!res.ok) return [];
     const xml = await res.text();
-    return parseGoogleNewsRss(xml, limit);
+    // Parse flere end "limit" råt, FØR alders-filteret trækker nogle fra –
+    // ellers kan for-tidlig afskæring fjerne friske artikler der lå senere
+    // i feedet end de første (ofte ældre) "limit" resultater.
+    return parseGoogleNewsRss(xml, limit * 3).filter(withinMaxAge).slice(0, limit);
   } catch {
     return [];
   }
@@ -101,7 +116,9 @@ const DANISH_SITE_FILTER = `(${DANISH_SITES.map((s) => `site:${s}`).join(" OR ")
 /**
  * Henter primært danske nyheder fra de foretrukne medier; suppleret med
  * globale/engelske nyheder, hvis der ikke er nok danske at vise. Deduplikeret
- * på URL, så en artikel aldrig optræder to gange.
+ * på URL, så en artikel aldrig optræder to gange. Alle nyheder skal højst
+ * være 7 dage gamle – "when:7d" er en hint til Google's søgning, og
+ * "withinMaxAge" i fetchGoogleNews er det egentlige sikkerhedsnet.
  */
 async function fetchLayeredNews(
   danishTopicQuery: string,
@@ -109,7 +126,7 @@ async function fetchLayeredNews(
   limit: number,
 ): Promise<NewsItem[]> {
   const danish = await fetchGoogleNews(
-    `${DANISH_SITE_FILTER} (${danishTopicQuery})`,
+    `${DANISH_SITE_FILTER} (${danishTopicQuery}) when:7d`,
     limit,
     DA_LOCALE,
   );
@@ -132,7 +149,7 @@ async function fetchLayeredNews(
 export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "elbil OR elbiler OR ladestander OR bilbranchen OR bilmærker OR bil",
-    '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations) when:2d',
+    '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations) when:7d',
     limit,
   );
 }
@@ -141,7 +158,7 @@ export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
 export async function getTechAiNews(limit = 6): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
-    '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles) when:2d',
+    '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles) when:7d',
     limit,
   );
 }
