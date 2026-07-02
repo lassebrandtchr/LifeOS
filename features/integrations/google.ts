@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   isGoogleConfigured,
   refreshAccessToken,
+  GoogleInvalidGrantError,
   type GoogleTokens,
 } from "@/lib/google/oauth";
 
@@ -128,7 +129,20 @@ export async function getValidAccessTokenFor(
       })
       .eq("user_id", userId);
     return refreshed.accessToken;
-  } catch {
+  } catch (e) {
+    // Google siger selv, at refresh_token'et er dødt (udløbet/tilbagekaldt) –
+    // typisk fordi OAuth-appen står i Google Cloud Console som "Testing"
+    // (der udløber Google refresh_tokens automatisk efter 7 dage). Rydder
+    // tokens, så "Forbundet"-badgen ikke lyver, og Lasse ser "Forbind"-
+    // knappen igen i stedet for en forvirrende "allerede forbundet, men
+    // synk fejler"-tilstand. En forbigående netværks-/serverfejl (alt
+    // andet) rører IKKE forbindelsen – den prøver bare igen ved næste synk.
+    if (e instanceof GoogleInvalidGrantError) {
+      await supabase
+        .from("google_connections")
+        .update({ access_token: null, refresh_token: null })
+        .eq("user_id", userId);
+    }
     return null;
   }
 }

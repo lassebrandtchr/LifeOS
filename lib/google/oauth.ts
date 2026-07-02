@@ -83,6 +83,19 @@ export async function exchangeCode(
   };
 }
 
+/**
+ * Kastes når Google selv siger, at refresh_token'et er ugyldigt (udløbet/
+ * tilbagekaldt) – modsat en forbigående netværks-/serverfejl. Skelnes fra en
+ * almindelig Error, så kalderen ved, at det KRÆVER en ny "Forbind"-omgang
+ * (ikke bare et nyt forsøg om 15 minutter).
+ */
+export class GoogleInvalidGrantError extends Error {
+  constructor() {
+    super("invalid_grant");
+    this.name = "GoogleInvalidGrantError";
+  }
+}
+
 /** Forny et access_token med et refresh_token. */
 export async function refreshAccessToken(
   refreshToken: string,
@@ -97,7 +110,13 @@ export async function refreshAccessToken(
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Token-fornyelse fejlede: ${res.status}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    if (res.status === 400 && body?.error === "invalid_grant") {
+      throw new GoogleInvalidGrantError();
+    }
+    throw new Error(`Token-fornyelse fejlede: ${res.status}`);
+  }
   const data = await res.json();
   return {
     accessToken: data.access_token,
