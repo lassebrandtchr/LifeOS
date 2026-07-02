@@ -102,7 +102,7 @@ export function NoteCards({
                 )}
               </div>
               {stackCount > 0 && (
-                <span className="absolute bottom-2.5 right-3 text-sm font-bold text-success">
+                <span className="absolute bottom-2.5 right-3 flex size-6 items-center justify-center rounded-full border border-success/40 bg-success/15 text-xs font-bold text-success">
                   {stackCount}
                 </span>
               )}
