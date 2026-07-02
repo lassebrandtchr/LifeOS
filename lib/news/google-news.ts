@@ -66,12 +66,13 @@ function parseGoogleNewsRss(xml: string, limit: number): NewsItem[] {
   return items;
 }
 
-const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
- * Ekstra sikkerhedsnet ud over Google's "when:7d"-søgeoperator, som kun er en
- * hint til søgningen og ikke en garanti (særligt kombineret med site:-filtre).
- * Artikler uden dato beholdes (kan ikke vurderes, men er sjældne).
+ * Ekstra sikkerhedsnet mod for gamle artikler – Google's "when:"-operator
+ * viste sig upålidelig (se fetchLayeredNews), så dette kode-side filter er
+ * den eneste reelle håndhævelse af aldersgrænsen. Artikler uden dato
+ * beholdes (kan ikke vurderes, men er sjældne).
  */
 function withinMaxAge(item: NewsItem): boolean {
   if (!item.publishedAt) return true;
@@ -247,10 +248,16 @@ async function fetchLayeredNews(
 }
 
 /** Arbejdstid: nyt om elbiler, fossilbiler, ladestandere og bilbranchen globalt. */
+// Bredt bilstof – ikke kun elbiler: bilmærker, ny teknologi, tilbagekaldelser
+// osv. generelt. Konkrete mærkenavne øger chancen for at ramme noget, da
+// "bil"/"car" alene ofte taber i Google's ranking til mere specifikke ord.
+const CAR_BRANDS =
+  "Volkswagen OR Toyota OR BMW OR Audi OR Mercedes OR Tesla OR Volvo OR Kia OR Hyundai OR Renault OR Peugeot OR Skoda OR Ford OR Nissan OR Honda";
+
 export async function getCarIndustryNews(limit = 6, opts?: NewsFetchOptions): Promise<NewsItem[]> {
   return fetchLayeredNews(
-    "elbil OR elbiler OR ladestander OR bilbranchen OR bilmærker OR bil",
-    '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations)',
+    `elbil OR elbiler OR bil OR biler OR bilmærker OR bilbranchen OR ladestander OR bilteknologi OR ${CAR_BRANDS}`,
+    `(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (new car models) OR (car technology) OR (self-driving cars) OR ${CAR_BRANDS}`,
     limit,
     opts,
   );
