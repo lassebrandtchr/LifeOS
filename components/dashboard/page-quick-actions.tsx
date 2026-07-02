@@ -8,7 +8,7 @@ import { toast } from "sonner";
 
 import { SectionCard } from "@/components/dashboard/section-card";
 import { quickCreateTask } from "@/features/tasks/actions";
-import type { Workspace, Priority } from "@/features/tasks/constants";
+import type { Workspace, Priority, Status } from "@/features/tasks/constants";
 
 /**
  * Hurtige handlinger til undersiderne (Storgaard / Privat).
@@ -28,6 +28,7 @@ export type QuickAction =
       title: string;
       workspace: Workspace;
       priority?: Priority;
+      status?: Status;
       category?: string;
       note?: string;
     }
@@ -73,6 +74,7 @@ export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
         title: action.title,
         workspace: action.workspace,
         priority: action.priority,
+        status: action.status,
         category: action.category ?? null,
         note: action.note ?? null,
       });

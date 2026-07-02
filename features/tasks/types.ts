@@ -7,6 +7,7 @@ export type Task = {
   description: string | null;
   notes: string | null;
   ai_notes: string | null;
+  trade_in: string | null;
   workspace: Workspace;
   category: string | null;
   priority: Priority;

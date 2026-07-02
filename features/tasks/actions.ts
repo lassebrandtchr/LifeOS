@@ -152,6 +152,7 @@ export async function quickCreateTask(params: {
   category?: string | null;
   note?: string | null;
   bucket?: Bucket;
+  status?: Status;
 }): Promise<{ ok?: boolean; id?: string; error?: string }> {
   const auth = await getAuth();
   if (!auth) return { error: NOT_READY };
@@ -170,7 +171,7 @@ export async function quickCreateTask(params: {
         priority: params.priority ?? "can_wait",
         category: params.category ?? null,
         notes: params.note ?? null,
-        status: "not_started",
+        status: params.status ?? "not_started",
         position: Date.now(),
       })
       .select("id")
@@ -352,6 +353,7 @@ export async function updateTask(
     category?: string | null;
     deadline?: string | null; // ISO eller null
     notes?: string | null;
+    trade_in?: string | null;
   },
 ): Promise<ActionState> {
   const auth = await getAuth();
@@ -370,6 +372,7 @@ export async function updateTask(
   if (fields.bucket !== undefined) update.bucket = fields.bucket;
   if (fields.category !== undefined) update.category = fields.category || null;
   if (fields.notes !== undefined) update.notes = fields.notes?.trim() || null;
+  if (fields.trade_in !== undefined) update.trade_in = fields.trade_in?.trim() || null;
   if (fields.deadline !== undefined) {
     update.deadline = fields.deadline || null;
     update.reminder_at = fields.deadline || null;

@@ -56,6 +56,8 @@ export const storgaardActions: QuickAction[] = [
     title: "Bud på bil",
     workspace: "work",
     category: "salg",
+    priority: "important",
+    status: "in_progress",
   },
   {
     kind: "create-task",
@@ -64,6 +66,9 @@ export const storgaardActions: QuickAction[] = [
     color: "#e6b15a",
     title: "Import af bil",
     workspace: "work",
+    category: "salg",
+    priority: "important",
+    status: "in_progress",
     note: IMPORT_BIL_NOTE,
   },
   {

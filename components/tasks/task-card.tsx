@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Calendar, GripVertical, StickyNote } from "lucide-react";
+import { Check, Calendar, GripVertical, StickyNote, Car } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { priorities, categoryById, statuses } from "@/features/tasks/constants";
 import { useOpenDetail } from "@/components/tasks/detail-context";
+import { summarizeTradeIn } from "@/features/tasks/trade-in";
 import type { Task } from "@/features/tasks/types";
 
 /** Kort uddrag af en note (til visning under titlen). */
@@ -41,6 +42,7 @@ export function TaskCard({
   const cat = categoryById(task.category);
   const deadline = formatDeadline(task.deadline);
   const excerpt = noteExcerpt(task.notes);
+  const tradeIn = summarizeTradeIn(task.trade_in);
   const { open } = useOpenDetail();
 
   return (
@@ -86,6 +88,12 @@ export function TaskCard({
           {task.status !== "not_started" && (
             <span className="inline-flex items-center gap-1">
               {statuses[task.status]?.label}
+            </span>
+          )}
+          {tradeIn && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground">
+              <Car className="size-3 shrink-0" />
+              {tradeIn}
             </span>
           )}
         </div>

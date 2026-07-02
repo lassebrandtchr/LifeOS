@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Phone, Mail, ListTodo, RefreshCw, Plus, ArrowRight } from "lucide-react";
+import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -11,11 +11,22 @@ import { SectionCard } from "@/components/dashboard/section-card";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { setTaskStatus, quickCreateTask } from "@/features/tasks/actions";
 import { syncEverythingNow } from "@/features/integrations/actions";
+import { summarizeTradeIn } from "@/features/tasks/trade-in";
 import { priorities } from "@/features/tasks/constants";
 import type { Workspace, Priority } from "@/features/tasks/constants";
 import type { ActionItem, ActionListGroups } from "@/features/dashboard/action-list";
 
 const GROUP_ORDER: Exclude<Priority, "low">[] = ["urgent", "important", "can_wait"];
+
+// Farvet prioritets-badge pr. opgave (erstatter de tidligere gruppe-
+// overskrifter "HASTER · 3" osv.) – literal klasse-strenge, så Tailwinds
+// JIT-scanner rent faktisk genererer dem (dynamisk sammensatte klassenavne
+// bliver IKKE fundet af scanneren).
+const priorityBadgeClass: Record<Exclude<Priority, "low">, string> = {
+  urgent: "border-destructive/40 bg-destructive/10 text-destructive",
+  important: "border-warning/40 bg-warning/10 text-warning",
+  can_wait: "border-yellow-400/40 bg-yellow-400/10 text-yellow-500",
+};
 
 /**
  * Action-liste – prioriteret overblik (Haster/Vigtigt/Kan vente), kombineret
@@ -73,6 +84,9 @@ export function ActionList({
     remaining -= shown[key].length;
   }
   const hiddenCount = total - (shown.urgent.length + shown.important.length + shown.can_wait.length);
+  // Én flad liste (Haster → Vigtigt → Kan vente) – prioritet vises nu som en
+  // farvet badge PÅ hver linje i stedet for gruppe-overskrifter.
+  const flatShown = [...shown.urgent, ...shown.important, ...shown.can_wait];
 
   return (
     <SectionCard title="Action-liste" icon={ListTodo}>
@@ -96,35 +110,16 @@ export function ActionList({
           Ingen opgaver eller mails kræver handling lige nu – godt gået!
         </p>
       ) : (
-        <div className="space-y-4">
-          {GROUP_ORDER.map((key) => {
-            const list = shown[key];
-            if (list.length === 0) return null;
-            return (
-              <div key={key}>
-                <p
-                  className={cn(
-                    "mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest",
-                    priorities[key].text,
-                  )}
-                >
-                  <span className={cn("size-1.5 rounded-full", priorities[key].dot)} />
-                  {priorities[key].label} · {visible[key].length}
-                </p>
-                <ul className="space-y-0.5">
-                  {list.map((item) => (
-                    <ActionRow
-                      key={item.id}
-                      item={item}
-                      workspace={workspace}
-                      onComplete={handleComplete}
-                    />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
+        <ul className="space-y-0.5">
+          {flatShown.map((item) => (
+            <ActionRow
+              key={item.id}
+              item={item}
+              workspace={workspace}
+              onComplete={handleComplete}
+            />
+          ))}
+        </ul>
       )}
 
       {viewAllHref && (hiddenCount > 0 || total > 0) && (
@@ -154,6 +149,7 @@ function ActionRow({
   const router = useRouter();
 
   const clickable = Boolean(item.task);
+  const tradeIn = summarizeTradeIn(item.task?.trade_in);
 
   async function handleCreateTask() {
     if (creating) return;
@@ -196,7 +192,17 @@ function ActionRow({
       )}
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium leading-snug">{item.title}</p>
+        <div className="flex items-start gap-2">
+          <span
+            className={cn(
+              "mt-0.5 inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+              priorityBadgeClass[item.priority],
+            )}
+          >
+            {priorities[item.priority].label}
+          </span>
+          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
+        </div>
         {item.context && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.context}</p>
         )}
@@ -212,6 +218,11 @@ function ActionRow({
           {item.contact?.email && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Mail className="size-3" /> {item.contact.email}
+            </span>
+          )}
+          {tradeIn && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Car className="size-3" /> {tradeIn}
             </span>
           )}
         </div>

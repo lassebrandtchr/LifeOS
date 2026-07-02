@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, StickyNote, FolderKanban, CheckSquare, Type } from "lucide-react";
+import { X, StickyNote, FolderKanban, CheckSquare, Type, Car } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -150,6 +150,7 @@ type TaskFields = {
   category: string | null;
   deadline: string | null;
   notes: string | null;
+  trade_in: string | null;
 };
 
 function TaskEditor({
@@ -176,6 +177,14 @@ function TaskEditor({
   const [category, setCategory] = React.useState<string>(task.category ?? "");
   const [deadline, setDeadline] = React.useState(isoToLocalInput(task.deadline));
   const [notes, setNotes] = React.useState(task.notes ?? "");
+  const [tradeIn, setTradeIn] = React.useState(task.trade_in ?? "");
+
+  // Salg-opgaver (Bud på bil / Import af bil) bruger Note langt mere end
+  // Beskrivelse, og har brug for et separat Byttebil-felt – så her skjules
+  // Beskrivelse, Note gøres større, og Byttebil dukker op. Styres af
+  // kategorien (ikke en fast oprindelses-markør), så det følger med hvis
+  // man selv skifter kategori i editoren.
+  const isCarDeal = category === "salg";
 
   // Kategorierne, der passer til den valgte verden.
   const catOptions = categories.filter((c) => c.workspace === workspace);
@@ -202,6 +211,7 @@ function TaskEditor({
       category: category || null,
       deadline: localInputToIso(deadline),
       notes: notes.trim() || null,
+      trade_in: tradeIn.trim() || null,
     });
   }
 
@@ -288,27 +298,42 @@ function TaskEditor({
           <Input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="h-9" />
         </Field>
 
-        {/* Note */}
+        {/* Note – større for Salg-opgaver (Bud på bil/Import af bil), som
+            bruger dette felt langt mere end Beskrivelse. */}
         <Field label="Note" icon={StickyNote}>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            rows={3}
+            rows={isCarDeal ? 8 : 3}
             placeholder="Skriv noter, detaljer, huskepunkter …"
             className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </Field>
 
-        {/* Beskrivelse (valgfri) */}
-        <Field label="Beskrivelse (valgfri)">
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-            placeholder="Kort beskrivelse …"
-            className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
-          />
-        </Field>
+        {isCarDeal ? (
+          /* Byttebil – fritekst; udfyldt tekst vises som en kort bil-info-
+             badge i opgavelisten og Action-listen (features/tasks/trade-in.ts). */
+          <Field label="Byttebil" icon={Car}>
+            <textarea
+              value={tradeIn}
+              onChange={(e) => setTradeIn(e.target.value)}
+              rows={2}
+              placeholder="Har kunden en byttebil? Fx mærke, model, årgang, reg.nr. …"
+              className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
+            />
+          </Field>
+        ) : (
+          /* Beskrivelse (valgfri) */
+          <Field label="Beskrivelse (valgfri)">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Kort beskrivelse …"
+              className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
+            />
+          </Field>
+        )}
 
         {/* Vedhæftninger */}
         <TaskAttachments taskId={task.id} />
