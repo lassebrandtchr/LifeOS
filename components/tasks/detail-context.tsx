@@ -25,6 +25,7 @@ import {
 } from "@/features/tasks/constants";
 import { updateTask, updateProjectNotes } from "@/features/tasks/actions";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
+import { DeadlinePicker } from "@/components/tasks/deadline-picker";
 import type { Task, Project } from "@/features/tasks/types";
 
 export type DetailItem =
@@ -296,7 +297,7 @@ function TaskEditor({
         </div>
 
         <Field label="Deadline">
-          <Input type="datetime-local" value={deadline} onChange={(e) => setDeadline(e.target.value)} className="h-9" />
+          <DeadlinePicker value={deadline} onChange={setDeadline} />
         </Field>
 
         {/* Note – større for Salg-opgaver (Bud på bil/Import af bil), som
