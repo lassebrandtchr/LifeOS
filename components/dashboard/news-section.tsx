@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import {
   Newspaper,
   BatteryCharging,
@@ -8,10 +11,13 @@ import {
   Tv,
   Watch,
   Car,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { timeAgo, detectNewsCategory, type NewsCategory, type NewsItem } from "@/lib/news/types";
+import { refreshNews } from "@/features/dashboard/news-actions";
 
 /**
  * Emne-badge pr. nyhed – et lille "liquid glass" ikon (samme glas-højlys +
@@ -55,19 +61,60 @@ function NewsIconBadge({ title }: { title: string }) {
  * electronics (+ lidt bilnyt) uden for. Kilderne kommer fra Google News'
  * eget RSS-feed (lib/news/google-news.ts), så det pr. definition kun er
  * kilder Google selv finder troværdige nok til deres nyhedsfeed.
+ *
+ * "Opdater"-knappen henter friske nyheder uden om den normale 6-timers-
+ * cache, og prøver at undgå at vise de samme historier igen.
  */
 export function NewsSection({ isWork, items }: { isWork: boolean; items: NewsItem[] }) {
+  const [shown, setShown] = React.useState(items);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  // Server-leverede "items" kan ændre sig udefra (fx arbejde/privat skifter
+  // automatisk ved arbejdstid) – deriveret state (ikke en effekt), så vores
+  // egen "Opdater"-liste ikke forsvinder ved re-render, men STADIG følger
+  // med når det reelt er en ny prop (ikke vores egen setShown-runde).
+  const [prevItems, setPrevItems] = React.useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setShown(items);
+  }
+
+  async function handleRefresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const fresh = await refreshNews(isWork, shown.map((n) => n.url));
+      setShown(fresh);
+    } catch {
+      toast.error("Kunne ikke hente nye nyheder.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div>
-      <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        <Newspaper className="size-3.5" />
-        {isWork ? "Nyheder fra bilverdenen" : "Nyheder fra tech- og AI-verdenen"}
-      </p>
-      {items.length === 0 ? (
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <Newspaper className="size-3.5" />
+          {isWork ? "Nyheder fra bilverdenen" : "Nyheder fra tech- og AI-verdenen"}
+        </p>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          aria-label="Opdater nyheder"
+          title="Hent andre nyheder"
+          className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-60"
+        >
+          <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
+        </button>
+      </div>
+      {shown.length === 0 ? (
         <p className="text-sm text-muted-foreground">Ingen nyheder tilgængelige lige nu.</p>
       ) : (
         <ul className="space-y-2.5">
-          {items.map((n) => (
+          {shown.map((n) => (
             <li key={n.url}>
               <a
                 href={n.url}

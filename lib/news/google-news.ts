@@ -97,13 +97,19 @@ async function fetchGoogleNews(
   query: string,
   limit: number,
   locale: { hl: string; gl: string; ceid: string },
+  force = false,
 ): Promise<NewsItem[]> {
   try {
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${locale.hl}&gl=${locale.gl}&ceid=${locale.ceid}`;
     // Google omdirigerer nogle gange til en "korrekt" region ud fra
     // serverens IP – "redirect: follow" (fetch-standard) følger den, ellers
-    // får vi et tomt svar i stedet for artikler.
-    const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS }, redirect: "follow" });
+    // får vi et tomt svar i stedet for artikler. Ved manuel "opdater"
+    // (force) springes 6-timers-cachen helt over, så man rent faktisk kan
+    // få noget andet at se med det samme.
+    const res = await fetch(url, {
+      ...(force ? { cache: "no-store" as const } : { next: { revalidate: REVALIDATE_SECONDS } }),
+      redirect: "follow",
+    });
     if (!res.ok) return [];
     const xml = await res.text();
     // Parse et godt stykke flere end "limit" råt, FØR alders-/sprogfilteret
@@ -144,6 +150,17 @@ const RESERVE_GLOBAL_SITE = "techradar.com";
 const MIDEAST_EXCLUDE =
   '-Iran -Iraq -Syria -Yemen -Israel -Palestine -Lebanon -Gaza -Hamas -Houthi -"Middle East" -"Saudi Arabia"';
 
+export type NewsFetchOptions = {
+  /** Springer 6-timers-cachen over – bruges kun af "Opdater"-knappen. */
+  force?: boolean;
+  /**
+   * URL'er der allerede vises – bruges til at give et REELT andet resultat
+   * ved manuel opdatering, ikke bare de samme 6 igen. Hvis der ikke er nok
+   * nye at finde, fyldes op med de ekskluderede (bedre end for få nyheder).
+   */
+  excludeUrls?: string[];
+};
+
 /**
  * Henter primært danske nyheder fra de foretrukne medier; suppleret med en
  * separat, foretrukket global kilde (techradar.com) og til sidst bredere
@@ -159,62 +176,80 @@ async function fetchLayeredNews(
   danishTopicQuery: string,
   englishTopicQuery: string,
   limit: number,
+  { force = false, excludeUrls = [] }: NewsFetchOptions = {},
 ): Promise<NewsItem[]> {
+  const exclude = new Set(excludeUrls);
+  // Med en udelukkelsesliste bedes hvert lag om flere end "limit", så der
+  // reelt er noget at vælge imellem efter de allerede-viste er sorteret fra.
+  const poolLimit = exclude.size > 0 ? limit * 3 : limit;
+  const freshCount = (items: NewsItem[]) => items.filter((i) => !exclude.has(i.url)).length;
+
   const danishRaw = await fetchGoogleNews(
     `${DANISH_SITE_FILTER} (${danishTopicQuery}) ${MIDEAST_EXCLUDE}`,
-    limit,
+    poolLimit,
     DA_LOCALE,
+    force,
   );
   const danish = danishRaw.filter(looksDanish);
   const seen = new Set(danish.map((d) => d.url));
   const combined = [...danish];
-  if (combined.length >= limit) return combined.slice(0, limit);
+  if (freshCount(combined) >= limit) return finalizeNews(combined, exclude, limit);
 
   // "site:X OR (...)" i ét udtryk returnerede 0 hits i praksis – X hentes
   // derfor som sit eget kald og merges bagefter i stedet.
   const reserve = await fetchGoogleNews(
     `site:${RESERVE_GLOBAL_SITE} (${englishTopicQuery}) ${MIDEAST_EXCLUDE}`,
-    limit,
+    poolLimit,
     EN_LOCALE,
+    force,
   );
   for (const item of reserve) {
-    if (combined.length >= limit) break;
     if (!seen.has(item.url)) {
       combined.push(item);
       seen.add(item.url);
     }
   }
-  if (combined.length >= limit) return combined.slice(0, limit);
+  if (freshCount(combined) >= limit) return finalizeNews(combined, exclude, limit);
 
   const fallback = await fetchGoogleNews(
     `(${englishTopicQuery}) ${MIDEAST_EXCLUDE}`,
-    limit,
+    poolLimit,
     EN_LOCALE,
+    force,
   );
   for (const item of fallback) {
-    if (combined.length >= limit) break;
     if (!seen.has(item.url)) {
       combined.push(item);
       seen.add(item.url);
     }
   }
-  return combined;
+  return finalizeNews(combined, exclude, limit);
+}
+
+/** Foretrækker "friske" (ikke-ekskluderede) artikler; fylder kun op med de ekskluderede hvis nødvendigt. */
+function finalizeNews(combined: NewsItem[], exclude: Set<string>, limit: number): NewsItem[] {
+  const fresh = combined.filter((i) => !exclude.has(i.url));
+  if (fresh.length >= limit) return fresh.slice(0, limit);
+  const stale = combined.filter((i) => exclude.has(i.url));
+  return [...fresh, ...stale].slice(0, limit);
 }
 
 /** Arbejdstid: nyt om elbiler, fossilbiler, ladestandere og bilbranchen globalt. */
-export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
+export async function getCarIndustryNews(limit = 6, opts?: NewsFetchOptions): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "elbil OR elbiler OR ladestander OR bilbranchen OR bilmærker OR bil",
     '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations)',
     limit,
+    opts,
   );
 }
 
 /** Privat tid: mest AI/tech/consumer electronics, med lidt bilnyt blandet ind. */
-export async function getTechAiNews(limit = 6): Promise<NewsItem[]> {
+export async function getTechAiNews(limit = 6, opts?: NewsFetchOptions): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
     '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles)',
     limit,
+    opts,
   );
 }
