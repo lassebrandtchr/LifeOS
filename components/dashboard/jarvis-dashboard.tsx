@@ -20,12 +20,13 @@ import { cn } from "@/lib/utils";
 import type { GreetingResult } from "@/features/dashboard/greeting";
 import type { DashboardData, DashboardEmail, DashboardEvent } from "@/features/dashboard/stats";
 import { siteConfig } from "@/config/site";
-import { focusTasks } from "@/features/dashboard/data";
 import { storgaardActions, privatActions } from "@/config/quick-actions";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { WeatherChip } from "@/components/dashboard/weather-chip";
 import { ActionList } from "@/components/dashboard/action-list";
 import { NewsSection } from "@/components/dashboard/news-section";
+import { useOpenDetail } from "@/components/tasks/detail-context";
+import { priorities } from "@/features/tasks/constants";
 import type { WeatherSnapshot } from "@/lib/weather/types";
 import type { NewsItem } from "@/lib/news/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
@@ -771,21 +772,23 @@ function PrivatPanel({ stats }: { stats: DashboardData["stats"] }) {
 
 // ─── Fokus panel ──────────────────────────────────────────────────────────────
 
-const dotClass = {
-  neutral: "bg-muted-foreground",
-  primary: "bg-primary",
-  warning: "bg-amber-400",
-  success: "bg-emerald-400",
-  danger: "bg-red-400",
-} as const;
-
+/**
+ * "Fokus i dag" – top 3 fra den SAMME Action-liste som resten af siden
+ * (haster → vigtigt → kan vente), ikke en fast liste. Klik åbner opgaven i
+ * den centrerede editor, ligesom rækkerne i selve Action-listen.
+ */
 function FokusPanel({
+  groups,
   openToday,
   doneTotal,
 }: {
+  groups: ActionListGroups;
   openToday: number;
   doneTotal: number;
 }) {
+  const { open } = useOpenDetail();
+  const topItems = [...groups.urgent, ...groups.important, ...groups.can_wait].slice(0, 3);
+
   return (
     <div className="glass-card flex flex-col rounded-card">
       <div className="flex items-center border-b border-border/40 px-5 py-4">
@@ -800,17 +803,39 @@ function FokusPanel({
         <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Top prioriteter
         </p>
-        <ol className="space-y-3">
-          {focusTasks.map((task, i) => (
-            <li key={task.title} className="flex items-start gap-3">
-              <span className="mt-0.5 w-4 shrink-0 text-sm font-semibold text-muted-foreground">
-                {i + 1}
-              </span>
-              <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", dotClass[task.tone])} />
-              <span className="text-sm font-medium leading-snug">{task.title}</span>
-            </li>
-          ))}
-        </ol>
+        {topItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Ingen prioriterede opgaver lige nu 🎉</p>
+        ) : (
+          <ol className="space-y-3">
+            {topItems.map((item, i) => {
+              const clickable = Boolean(item.task);
+              return (
+                <li key={item.id} className="flex items-start gap-3">
+                  <span className="mt-0.5 w-4 shrink-0 text-sm font-semibold text-muted-foreground">
+                    {i + 1}
+                  </span>
+                  <span
+                    className={cn(
+                      "mt-1.5 size-2 shrink-0 rounded-full",
+                      priorities[item.priority]?.dot ?? priorities.can_wait.dot,
+                    )}
+                  />
+                  {clickable ? (
+                    <button
+                      type="button"
+                      onClick={() => open({ type: "task", task: item.task! })}
+                      className="text-left text-sm font-medium leading-snug hover:underline"
+                    >
+                      {item.title}
+                    </button>
+                  ) : (
+                    <span className="text-sm font-medium leading-snug">{item.title}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         <div className="mt-4 grid grid-cols-2 gap-2">
           <div className="rounded-xl border border-border/50 bg-secondary/30 p-3">
@@ -936,7 +961,11 @@ export function JarvisDashboard({
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {isWork ? <StorgaardPanel stats={stats} /> : <PrivatPanel stats={stats} />}
-          <FokusPanel openToday={view.openToday} doneTotal={view.doneTotal} />
+          <FokusPanel
+            groups={isWork ? actionGroups.work : actionGroups.private}
+            openToday={view.openToday}
+            doneTotal={view.doneTotal}
+          />
         </div>
       </div>
 
