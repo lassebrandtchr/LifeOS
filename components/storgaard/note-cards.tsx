@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { saveNoteCard } from "@/features/notes/actions";
+import { NoteItemAttachments } from "@/components/storgaard/note-item-attachments";
 import type { NoteCardTheme } from "@/config/note-cards";
 
 const container: Variants = {
@@ -355,6 +356,7 @@ function StackedEditor({
                   placeholder="Skriv her …"
                   className="w-full resize-y bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70"
                 />
+                <NoteItemAttachments itemId={it.id} />
               </motion.div>
             ))}
           </AnimatePresence>
