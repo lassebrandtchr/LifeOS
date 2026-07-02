@@ -111,7 +111,7 @@ function DashboardHeader({
         className="absolute -right-10 -top-16 size-56 rounded-full bg-white/20 blur-3xl"
       />
 
-      <div className="relative flex items-start justify-between gap-4">
+      <div className="relative flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div>
           <p className="text-sm font-medium text-white/75">
             {siteConfig.name} · {capitalised}
@@ -120,15 +120,19 @@ function DashboardHeader({
             {greeting.text}, {siteConfig.owner} {greeting.emoji}
           </h1>
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        {/* På mobil er der ikke plads til at badge + vejr-pillerne står ved
+            siden af overskriften uden at blive skåret af – her stables de i
+            stedet under, og kan ombrydes hvis pladsen stadig er trang. Fra
+            sm og op er layoutet uændret (badge + vejr i højre hjørne). */}
+        <div className="flex flex-row flex-wrap items-center gap-2 sm:shrink-0 sm:flex-col sm:items-end">
           <span
-            className="mt-1 rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)]"
+            className="rounded-full px-3 py-1 text-xs font-semibold text-white ring-1 ring-white/20 backdrop-blur-md shadow-[0_2px_10px_rgba(0,0,0,0.25)] sm:mt-1"
             style={{ backgroundColor: "rgba(9, 46, 27, 0.9)" }}
           >
             {isWork ? "🏢 Arbejdstid" : "🏠 Privat tid"}
           </span>
           {(weather.bramming || weather.ribe) && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <WeatherChip label="Bramming" snapshot={weather.bramming} />
               <WeatherChip label="Ribe" snapshot={weather.ribe} />
             </div>

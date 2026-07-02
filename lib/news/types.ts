@@ -22,30 +22,33 @@ export function timeAgo(iso: string | null): string {
 }
 
 /**
- * Lille emne-ikon pr. nyhed, udledt af overskriften – rene nøgleords-regler
+ * Emne-kategori pr. nyhed, udledt af overskriften – rene nøgleords-regler
  * (dansk + engelsk), tjekket i rækkefølge (mest specifikke først, så fx
  * "elbil" rammer batteri-reglen og ikke den generiske bil-fallback).
  * Ord-grænser (\b) bruges overalt, så korte ord som "bil" ikke falsk-rammer
- * inde i "mobil"/"automobil".
+ * inde i "mobil"/"automobil". Selve ikon-tegningen (liquid-glass badge, ikke
+ * emoji) sker i news-section.tsx ud fra denne kategori.
  */
+export type NewsCategory = "ev" | "fuel" | "phone" | "ai" | "computer" | "screen" | "watch" | "car" | "general";
+
 // \w* som suffiks fanger danske bøjninger/sammensætninger frit
 // ("elbilister", "ladestandere", "tankstationerne" ...) uden en fast liste.
-const ICON_RULES: { emoji: string; pattern: RegExp }[] = [
-  { emoji: "🔋", pattern: /\b(elbil\w*|batteri\w*|ladestander\w*|charging|electric vehicle)\b/i },
-  { emoji: "⛽", pattern: /\b(fossilbil\w*|benzin\w*|diesel\w*|tankstation\w*|petrol|gasoline|fuel)\b/i },
-  { emoji: "📱", pattern: /\b(telefon\w*|iphone|smartphone\w*|android|mobiltelefon\w*)\b/i },
-  { emoji: "🤖", pattern: /\b(kunstig intelligens|\bai\b|chatgpt|gemini|copilot|robot\w*)\b/i },
-  { emoji: "💻", pattern: /\b(laptop\w*|computer\w*|macbook\w*|\bpc\b)\b/i },
-  { emoji: "📺", pattern: /\b(\btv\b|skærm\w*|fjernsyn\w*)\b/i },
-  { emoji: "⌚", pattern: /\b(smartwatch\w*|(smart)?ur(et|ene)?|watch\w*)\b/i },
+const CATEGORY_RULES: { category: NewsCategory; pattern: RegExp }[] = [
+  { category: "ev", pattern: /\b(elbil\w*|batteri\w*|ladestander\w*|charging|electric vehicle)\b/i },
+  { category: "fuel", pattern: /\b(fossilbil\w*|benzin\w*|diesel\w*|tankstation\w*|petrol|gasoline|fuel)\b/i },
+  { category: "phone", pattern: /\b(telefon\w*|iphone|smartphone\w*|android|mobiltelefon\w*)\b/i },
+  { category: "ai", pattern: /\b(kunstig intelligens|\bai\b|chatgpt|gemini|copilot|robot\w*)\b/i },
+  { category: "computer", pattern: /\b(laptop\w*|computer\w*|macbook\w*|\bpc\b)\b/i },
+  { category: "screen", pattern: /\b(\btv\b|skærm\w*|fjernsyn\w*)\b/i },
+  { category: "watch", pattern: /\b(smartwatch\w*|(smart)?ur(et|ene)?|watch\w*)\b/i },
   // "bil" er kort og tvetydigt (rammer "billeder", "bilag" osv. med \w*),
   // så her holdes en udtrykkelig bøjningsliste i stedet for et wildcard-suffiks.
-  { emoji: "🚗", pattern: /\b(bil|biler|bilist\w*|bilbranchen|bilmærker|bilhandel|car|cars|automotive|tesla|toyota|bmw|audi|volvo)\b/i },
+  { category: "car", pattern: /\b(bil|biler|bilist\w*|bilbranchen|bilmærker|bilhandel|car|cars|automotive|tesla|toyota|bmw|audi|volvo)\b/i },
 ];
 
-export function detectNewsIcon(title: string): string {
-  for (const rule of ICON_RULES) {
-    if (rule.pattern.test(title)) return rule.emoji;
+export function detectNewsCategory(title: string): NewsCategory {
+  for (const rule of CATEGORY_RULES) {
+    if (rule.pattern.test(title)) return rule.category;
   }
-  return "📰";
+  return "general";
 }

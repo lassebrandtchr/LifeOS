@@ -393,7 +393,16 @@ export async function updateTask(
     // Migration 0011 (kolonnen "trade_in") er måske ikke kørt i Supabase
     // endnu – lad ikke det blokere resten af opgaven (titel/deadline/status
     // osv.) fra at blive gemt. Prøv igen uden feltet, og fortæl hvorfor.
-    if (error?.code === "42703" && "trade_in" in update) {
+    // Postgres selv fejler med "42703"; PostgREST's skema-cache (langt
+    // hyppigere set i praksis) fejler i stedet med koden "PGRST204" og en
+    // besked som "Could not find the 'trade_in' column ... in the schema
+    // cache" – begge skal fange faldet tilbage til retry.
+    const missingTradeIn =
+      "trade_in" in update &&
+      (error?.code === "42703" ||
+        error?.code === "PGRST204" ||
+        /trade_in/i.test(error?.message ?? ""));
+    if (missingTradeIn) {
       delete update.trade_in;
       const retry = await auth.supabase
         .from("tasks")
