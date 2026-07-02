@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
+import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Bold as BoldIcon, Heading2 } from "lucide-react";
@@ -87,9 +88,6 @@ export function RichTextEditor({
 
   if (!editor) return null;
 
-  const currentSize =
-    (editor.getAttributes("fontSize").size as string | undefined) ?? null;
-
   return (
     <div
       className={cn(
@@ -106,40 +104,65 @@ export function RichTextEditor({
           bare ? "mb-1 border-b border-border/40 pb-1" : cn("border-b border-border/50", compact ? "py-1" : "py-1.5"),
         )}
       >
-        <ToolbarButton
-          active={editor.isActive("heading", { level: 2 })}
-          onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-          label="Overskrift"
-        >
-          <Heading2 className="size-3.5" />
-        </ToolbarButton>
-        <ToolbarButton
-          active={editor.isActive("bold")}
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          label="Fed"
-        >
-          <BoldIcon className="size-3.5" />
-        </ToolbarButton>
-        <div className="mx-1 h-4 w-px bg-border/60" />
-        <select
-          value={currentSize ?? ""}
-          onChange={(e) => {
-            const v = e.target.value || null;
-            if (v) editor.chain().focus().setFontSize(v).run();
-            else editor.chain().focus().unsetFontSize().run();
-          }}
-          className="h-6 rounded-md border border-border/50 bg-secondary/40 px-1.5 text-[11px] text-foreground outline-none"
-          aria-label="Tekststørrelse"
-        >
-          {SIZES.map((s) => (
-            <option key={s.label} value={s.value ?? ""}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <FormatControls editor={editor} />
       </div>
+
+      {/* Pop op ved markering – de SAMME kontroller lige ved siden af den
+          markerede tekst, så man ikke skal op til værktøjslinjen for hver
+          formatering. Vises kun når der reelt er markeret noget tekst
+          (Tiptaps egen shouldShow-logik). "fixed" positionerings-strategi
+          er nødvendig, fordi editoren altid bruges inde i en framer-motion-
+          modal (transform under animation skaber en ny "containing block",
+          som ødelægger floating-ui's standard "absolute"-strategi). */}
+      <BubbleMenu editor={editor} options={{ strategy: "fixed", placement: "top" }}>
+        <div className="glass-card-strong flex items-center gap-1 rounded-xl px-2 py-1.5 shadow-soft-lg">
+          <FormatControls editor={editor} />
+        </div>
+      </BubbleMenu>
+
       <EditorContent editor={editor} className={bare ? "" : cn("px-3.5", compact ? "py-2" : "py-2.5")} />
     </div>
+  );
+}
+
+/** Overskrift/Fed/Størrelse – genbruges i både den faste værktøjslinje og pop op-menuen ved markering. */
+function FormatControls({ editor }: { editor: Editor }) {
+  const currentSize = (editor.getAttributes("fontSize").size as string | undefined) ?? null;
+
+  return (
+    <>
+      <ToolbarButton
+        active={editor.isActive("heading", { level: 2 })}
+        onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+        label="Overskrift"
+      >
+        <Heading2 className="size-3.5" />
+      </ToolbarButton>
+      <ToolbarButton
+        active={editor.isActive("bold")}
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        label="Fed"
+      >
+        <BoldIcon className="size-3.5" />
+      </ToolbarButton>
+      <div className="mx-1 h-4 w-px bg-border/60" />
+      <select
+        value={currentSize ?? ""}
+        onChange={(e) => {
+          const v = e.target.value || null;
+          if (v) editor.chain().focus().setFontSize(v).run();
+          else editor.chain().focus().unsetFontSize().run();
+        }}
+        className="h-6 rounded-md border border-border/50 bg-secondary/40 px-1.5 text-[11px] text-foreground outline-none"
+        aria-label="Tekststørrelse"
+      >
+        {SIZES.map((s) => (
+          <option key={s.label} value={s.value ?? ""}>
+            {s.label}
+          </option>
+        ))}
+      </select>
+    </>
   );
 }
 

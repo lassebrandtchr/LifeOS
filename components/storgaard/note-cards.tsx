@@ -213,7 +213,7 @@ function NoteEditorModal({
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <motion.div
-        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg"
+        className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg lg:max-h-[90vh] lg:max-w-4xl"
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 12 }}
