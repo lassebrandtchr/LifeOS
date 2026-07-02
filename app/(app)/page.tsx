@@ -15,8 +15,8 @@ export default async function HomePage() {
     getAllWeather(),
     getMailMessages(50),
     getTasksByBucket(),
-    getCarIndustryNews(6),
-    getTechAiNews(6),
+    getCarIndustryNews(5),
+    getTechAiNews(5),
   ]);
   const news = { work: carNews, private: techNews };
 

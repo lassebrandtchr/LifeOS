@@ -13,5 +13,5 @@ export async function refreshNews(
   excludeUrls: string[],
 ): Promise<NewsItem[]> {
   const opts = { force: true, excludeUrls };
-  return isWork ? getCarIndustryNews(6, opts) : getTechAiNews(6, opts);
+  return isWork ? getCarIndustryNews(5, opts) : getTechAiNews(5, opts);
 }

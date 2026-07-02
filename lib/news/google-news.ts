@@ -254,7 +254,7 @@ async function fetchLayeredNews(
 const CAR_BRANDS =
   "Volkswagen OR Toyota OR BMW OR Audi OR Mercedes OR Tesla OR Volvo OR Kia OR Hyundai OR Renault OR Peugeot OR Skoda OR Ford OR Nissan OR Honda";
 
-export async function getCarIndustryNews(limit = 6, opts?: NewsFetchOptions): Promise<NewsItem[]> {
+export async function getCarIndustryNews(limit = 5, opts?: NewsFetchOptions): Promise<NewsItem[]> {
   return fetchLayeredNews(
     `elbil OR elbiler OR bil OR biler OR bilmærker OR bilbranchen OR ladestander OR bilteknologi OR ${CAR_BRANDS}`,
     `(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (new car models) OR (car technology) OR (self-driving cars) OR ${CAR_BRANDS}`,
@@ -264,7 +264,7 @@ export async function getCarIndustryNews(limit = 6, opts?: NewsFetchOptions): Pr
 }
 
 /** Privat tid: mest AI/tech/consumer electronics, med lidt bilnyt blandet ind. */
-export async function getTechAiNews(limit = 6, opts?: NewsFetchOptions): Promise<NewsItem[]> {
+export async function getTechAiNews(limit = 5, opts?: NewsFetchOptions): Promise<NewsItem[]> {
   return fetchLayeredNews(
     "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
     '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles)',
