@@ -310,13 +310,13 @@ export async function syncNotionTasksCore(
 
     const { data: existing } = await supabase
       .from("tasks")
-      .select("id, notion_id")
+      .select("id, notion_id, status")
       .eq("user_id", userId)
       .not("notion_id", "is", null);
 
-    const byNotionId = new Map<string, string>();
+    const byNotionId = new Map<string, { id: string; status: string }>();
     for (const r of existing ?? []) {
-      if (r.notion_id) byNotionId.set(r.notion_id as string, r.id as string);
+      if (r.notion_id) byNotionId.set(r.notion_id as string, { id: r.id as string, status: r.status as string });
     }
 
     const toInsert: Record<string, unknown>[] = [];
@@ -325,21 +325,28 @@ export async function syncNotionTasksCore(
       const completed_at =
         t.done || t.status === "done" ? new Date().toISOString() : null;
       const tags = t.workArea ? [t.workArea] : [];
-      const existingId = byNotionId.get(t.notionId);
+      const local = byNotionId.get(t.notionId);
 
-      if (existingId) {
+      if (local) {
+        const update: Record<string, unknown> = {
+          title: t.title,
+          deadline: t.deadline,
+          category: t.category,
+          workspace: t.workspace,
+          priority: t.priority,
+        };
+        // Synkroniseringen er kun én vej (Notion → LifeOS, ingen write-back),
+        // så en Notion-side der stadig står som åben må ALDRIG genåbne en
+        // opgave, brugeren allerede har markeret som færdig her i appen –
+        // ellers "genopstår" netop-afkrydsede opgaver ved næste synk.
+        if (local.status !== "done") {
+          update.status = t.status;
+          update.completed_at = completed_at;
+        }
         await supabase
           .from("tasks")
-          .update({
-            title: t.title,
-            deadline: t.deadline,
-            status: t.status,
-            completed_at,
-            category: t.category,
-            workspace: t.workspace,
-            priority: t.priority,
-          })
-          .eq("id", existingId)
+          .update(update)
+          .eq("id", local.id)
           .eq("user_id", userId);
         updated++;
       } else {
