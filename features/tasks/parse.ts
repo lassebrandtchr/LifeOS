@@ -42,7 +42,7 @@ const CATEGORY_KEYWORDS: { id: string; words: string[] }[] = [
   { id: "sociale_medier", words: ["instagram", "facebook", "tiktok", "sociale medier", "story", "reel", "opslag", "post", "linkedin", "youtube"] },
   { id: "markedsfoering", words: ["markedsf", "kampagne", "reklame", "prisskilt", "skilt", "design", "flyer", "banner", "brochure", "annonce", "video", "foto", "billeder", "redigér", "rediger"] },
   { id: "kundeopfoelgning", words: ["følg op", "opfølg", "kunde", "lead", "ring til", "ringe", "kontakt", "tilbagemelding", "henvendelse", "fremvisning"] },
-  { id: "finansiering", words: ["finansier", "lån", "leasing", "kredit", "afbetaling", "santander"] },
+  { id: "finansiering", words: ["finansier", "lån", "leasing", "lease", "kredit", "afbetaling", "santander"] },
   { id: "salg", words: ["salg", "sælg", "tilbud", "prøvekørsel", "byttebil", "slutseddel", "handel", "købsaftale", "indregistrer", "indregistrering", "bud på bil", "giv bud", "byd på", "importbil", "import af bil", "bilhandel"] },
   { id: "mail", words: ["mail", "e-mail", "email", "besvar", "svar på", "skriv til", "send til"] },
   { id: "administration", words: ["faktura", "regnskab", "moms", "bogfør", "administration", "papirarbejde", "bestil", "registrer", "synshal", "syn", "nummerplade", "forsikring", "dmr", "motorregister"] },
@@ -59,8 +59,9 @@ const WORK_SIGNALS = [
   "vw", "volkswagen", "audi", "bmw", "mercedes", "tesla", "skoda", "toyota",
   "ford", "kia", "hyundai", "peugeot", "renault", "opel", "seat", "cupra",
   "id.4", "id4", "bil", "biler", "dæk", "gummimåtter", "klargøring", "klargør",
-  "værksted", "lager", "stelnummer", "kunde", "leasing", "showroom",
+  "værksted", "lager", "stelnummer", "kunde", "leasing", "lease", "showroom",
   "prøvekørsel", "tilbud", "salgsafd", "indregistrer", "nummerplade", "storgaard",
+  "bud", "reservedel", "reservedele",
 ];
 
 /** Ord der signalerer privat, selv uden en tydelig kategori. */
