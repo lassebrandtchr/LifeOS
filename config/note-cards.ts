@@ -23,6 +23,11 @@ export type NoteCardTheme = {
   icon: LucideIcon;
   color: string;
   workspace: Workspace;
+  /** "stack" = en voksende bunke af små, enkeltvist redigerbare/sletbare
+   *  kasser (fx punkter til et møde) i stedet for ét stort notefelt. */
+  mode?: "single" | "stack";
+  /** Tekst på "tilføj ny kasse"-knappen (kun for mode: "stack"). */
+  addLabel?: string;
 };
 
 export const storgaardNoteCards: NoteCardTheme[] = [
@@ -32,6 +37,8 @@ export const storgaardNoteCards: NoteCardTheme[] = [
     icon: MessageCircle,
     color: "#34b3a4",
     workspace: "work",
+    mode: "stack",
+    addLabel: "Tilføj noget vigtigt til morgenmøde",
   },
   {
     title: "Torsdag møde – værd at nævne",
@@ -39,6 +46,8 @@ export const storgaardNoteCards: NoteCardTheme[] = [
     icon: Users,
     color: "#e6b15a",
     workspace: "work",
+    mode: "stack",
+    addLabel: "Tilføj noget vigtigt til næste torsdagsmøde",
   },
   {
     title: "Vigtige processer i salg (import, huskeliste etc)",
