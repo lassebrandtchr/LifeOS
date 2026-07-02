@@ -154,12 +154,21 @@ export type NewsFetchOptions = {
   /** Springer 6-timers-cachen over – bruges kun af "Opdater"-knappen. */
   force?: boolean;
   /**
-   * URL'er der allerede vises – bruges til at give et REELT andet resultat
-   * ved manuel opdatering, ikke bare de samme 6 igen. Hvis der ikke er nok
-   * nye at finde, fyldes op med de ekskluderede (bedre end for få nyheder).
+   * URL'er der allerede vises – ved "Opdater" skal ALLE viste artikler
+   * skiftes ud, aldrig genvises. Kun artikler UDEN for denne liste kommer
+   * med i resultatet (se finalizeNews) – ingen "fylder op med det gamle".
    */
   excludeUrls?: string[];
 };
+
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
 
 /**
  * Henter primært danske nyheder fra de foretrukne medier; suppleret med en
@@ -171,6 +180,11 @@ export type NewsFetchOptions = {
  * "withinMaxAge" i fetchGoogleNews er derfor det ENESTE, der håndhæver
  * 7-dages-grænsen. Samme mønster for sprog: "looksDanish" er
  * sikkerhedsnettet for hl=da&gl=DK, som heller ikke er en garanti i sig selv.
+ *
+ * Ved "Opdater" (excludeUrls sat) hentes ALLE tre lag altid – ikke kun til
+ * "limit" er nået – for at gøre puljen af MULIGE nye artikler så stor som
+ * muligt, og resultatet blandes før det klippes til "limit", så gentagne
+ * klik ikke bare viser den samme håndfuld i samme rækkefølge igen.
  */
 async function fetchLayeredNews(
   danishTopicQuery: string,
@@ -179,9 +193,8 @@ async function fetchLayeredNews(
   { force = false, excludeUrls = [] }: NewsFetchOptions = {},
 ): Promise<NewsItem[]> {
   const exclude = new Set(excludeUrls);
-  // Med en udelukkelsesliste bedes hvert lag om flere end "limit", så der
-  // reelt er noget at vælge imellem efter de allerede-viste er sorteret fra.
-  const poolLimit = exclude.size > 0 ? limit * 3 : limit;
+  const isRefresh = exclude.size > 0;
+  const poolLimit = isRefresh ? limit * 8 : limit;
   const freshCount = (items: NewsItem[]) => items.filter((i) => !exclude.has(i.url)).length;
 
   const danishRaw = await fetchGoogleNews(
@@ -193,7 +206,7 @@ async function fetchLayeredNews(
   const danish = danishRaw.filter(looksDanish);
   const seen = new Set(danish.map((d) => d.url));
   const combined = [...danish];
-  if (freshCount(combined) >= limit) return finalizeNews(combined, exclude, limit);
+  if (!isRefresh && freshCount(combined) >= limit) return combined.slice(0, limit);
 
   // "site:X OR (...)" i ét udtryk returnerede 0 hits i praksis – X hentes
   // derfor som sit eget kald og merges bagefter i stedet.
@@ -209,7 +222,7 @@ async function fetchLayeredNews(
       seen.add(item.url);
     }
   }
-  if (freshCount(combined) >= limit) return finalizeNews(combined, exclude, limit);
+  if (!isRefresh && freshCount(combined) >= limit) return combined.slice(0, limit);
 
   const fallback = await fetchGoogleNews(
     `(${englishTopicQuery}) ${MIDEAST_EXCLUDE}`,
@@ -223,15 +236,14 @@ async function fetchLayeredNews(
       seen.add(item.url);
     }
   }
-  return finalizeNews(combined, exclude, limit);
-}
 
-/** Foretrækker "friske" (ikke-ekskluderede) artikler; fylder kun op med de ekskluderede hvis nødvendigt. */
-function finalizeNews(combined: NewsItem[], exclude: Set<string>, limit: number): NewsItem[] {
-  const fresh = combined.filter((i) => !exclude.has(i.url));
-  if (fresh.length >= limit) return fresh.slice(0, limit);
-  const stale = combined.filter((i) => exclude.has(i.url));
-  return [...fresh, ...stale].slice(0, limit);
+  if (!isRefresh) return combined.slice(0, limit);
+
+  // Refresh: KUN artikler der ikke allerede vises – aldrig fyldt op med de
+  // gamle. Kan derfor godt returnere færre end "limit" (eller ingen, hvis
+  // kilderne reelt ikke har mere nyt inden for 7 dage lige nu) – det er
+  // mere ærligt end at genvise noget, der allerede står på skærmen.
+  return shuffle(combined.filter((i) => !exclude.has(i.url))).slice(0, limit);
 }
 
 /** Arbejdstid: nyt om elbiler, fossilbiler, ladestandere og bilbranchen globalt. */

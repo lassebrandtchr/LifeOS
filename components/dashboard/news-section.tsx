@@ -84,6 +84,13 @@ export function NewsSection({ isWork, items }: { isWork: boolean; items: NewsIte
     setRefreshing(true);
     try {
       const fresh = await refreshNews(isWork, shown.map((n) => n.url));
+      if (fresh.length === 0) {
+        // Kilderne har reelt ikke noget andet at byde på lige nu inden for
+        // 7-dages-grænsen – behold den nuværende liste i stedet for at vise
+        // en tom kasse, og sig det ærligt frem for at genvise det samme.
+        toast.info("Ingen nye historier lige nu – prøv igen om lidt.");
+        return;
+      }
       setShown(fresh);
     } catch {
       toast.error("Kunne ikke hente nye nyheder.");
