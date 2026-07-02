@@ -6,11 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { workspaces } from "@/features/tasks/constants";
 import { useOpenDetail } from "@/components/tasks/detail-context";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Project } from "@/features/tasks/types";
 
 function noteExcerpt(notes: string | null): string | null {
-  if (!notes) return null;
-  const clean = notes.replace(/\s+/g, " ").trim();
+  const clean = stripHtmlInline(notes);
   if (!clean) return null;
   return clean.length > 80 ? clean.slice(0, 79).trimEnd() + "…" : clean;
 }

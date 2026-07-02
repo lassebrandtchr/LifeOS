@@ -7,6 +7,7 @@ import { Search, Loader2, ListChecks, FolderKanban, StickyNote, Mail, FileText }
 import { cn } from "@/lib/utils";
 import { priorities } from "@/features/tasks/constants";
 import { searchAction } from "@/features/tasks/actions";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { SearchResults } from "@/features/tasks/queries";
 
 const EMPTY: SearchResults = {
@@ -146,7 +147,7 @@ export function GlobalSearch() {
                     >
                       <StickyNote className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">
-                        {n.title || n.body}
+                        {n.title || stripHtmlInline(n.body)}
                       </span>
                     </button>
                   ))}

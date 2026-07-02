@@ -6,12 +6,12 @@ import { cn } from "@/lib/utils";
 import { priorities, categoryById, statuses } from "@/features/tasks/constants";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { summarizeTradeIn } from "@/features/tasks/trade-in";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Task } from "@/features/tasks/types";
 
-/** Kort uddrag af en note (til visning under titlen). */
+/** Kort uddrag af en note (til visning under titlen) – noten kan indeholde rig-tekst-HTML. */
 function noteExcerpt(notes: string | null): string | null {
-  if (!notes) return null;
-  const clean = notes.replace(/\s+/g, " ").trim();
+  const clean = stripHtmlInline(notes);
   if (!clean) return null;
   return clean.length > 70 ? clean.slice(0, 69).trimEnd() + "…" : clean;
 }

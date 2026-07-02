@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { saveNoteCard } from "@/features/notes/actions";
 import { NoteItemAttachments } from "@/components/storgaard/note-item-attachments";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { stripHtmlInline, isHtmlEmpty } from "@/lib/text/strip-html";
 import type { NoteCardTheme } from "@/config/note-cards";
 
 const container: Variants = {
@@ -80,9 +82,9 @@ export function NoteCards({
         {cards.map((card) => {
           const isStack = card.mode === "stack";
           const stackCount = isStack
-            ? parseStack(bodies[card.title] ?? "").filter((i) => i.text.trim()).length
+            ? parseStack(bodies[card.title] ?? "").filter((i) => !isHtmlEmpty(i.text)).length
             : 0;
-          const preview = isStack ? null : bodies[card.title] || null;
+          const preview = isStack ? null : stripHtmlInline(bodies[card.title]) || null;
           return (
             <motion.button
               key={card.title}
@@ -189,7 +191,7 @@ function NoteEditorModal({
     if (pending) return;
     setPending(true);
     const serialized = isStack
-      ? JSON.stringify(items.filter((i) => i.text.trim()))
+      ? JSON.stringify(items.filter((i) => !isHtmlEmpty(i.text)))
       : text;
     const res = await saveNoteCard(card.title, card.workspace, serialized);
     setPending(false);
@@ -258,13 +260,12 @@ function NoteEditorModal({
                 <StickyNote className="size-4 text-primary" />
                 Noter
               </label>
-              <textarea
-                autoFocus
+              <RichTextEditor
                 value={text}
-                onChange={(e) => setText(e.target.value)}
-                rows={14}
+                onChange={setText}
+                minHeightClassName="min-h-72"
                 placeholder="Skriv løs her …"
-                className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
+                autoFocus
               />
             </>
           )}
@@ -348,13 +349,14 @@ function StackedEditor({
                 >
                   <X className="size-3.5" />
                 </button>
-                <textarea
-                  autoFocus={it.text === ""}
+                <RichTextEditor
+                  autoFocus={isHtmlEmpty(it.text)}
                   value={it.text}
-                  onChange={(e) => onChange(it.id, e.target.value)}
-                  rows={2}
+                  onChange={(next) => onChange(it.id, next)}
+                  minHeightClassName="min-h-10"
                   placeholder="Skriv her …"
-                  className="w-full resize-y bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground/70"
+                  compact
+                  bare
                 />
                 <NoteItemAttachments itemId={it.id} />
               </motion.div>

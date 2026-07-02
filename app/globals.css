@@ -321,3 +321,40 @@
       transparent;
   }
 }
+
+/* ---------------------- RIG TEKST (RichTextEditor) --------------------- */
+/* Styling for Tiptap-indholdet i note-felter (opgaver, projekter, note-
+   kasser) – overskrift/fed/tekststørrelse skal se rigtige ud, og den tomme
+   editor skal vise sin placeholder (Tiptap Placeholder-udvidelsens
+   standard-klasser/attribut, ikke noget vi selv opfinder). */
+.rte-content {
+  min-height: 1.5em;
+}
+.rte-content p {
+  margin: 0 0 0.5em;
+}
+.rte-content p:last-child {
+  margin-bottom: 0;
+}
+.rte-content h2 {
+  margin: 0.15em 0 0.35em;
+  font-size: 1.25em;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+.rte-content strong {
+  font-weight: 700;
+}
+.rte-content ul,
+.rte-content ol {
+  margin: 0 0 0.5em 1.25em;
+}
+.rte-content .is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}

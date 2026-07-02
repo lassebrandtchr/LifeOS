@@ -26,6 +26,7 @@ import {
 import { updateTask, updateProjectNotes } from "@/features/tasks/actions";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import type { Task, Project } from "@/features/tasks/types";
 
 export type DetailItem =
@@ -303,12 +304,11 @@ function TaskEditor({
         {/* Note – større for Salg-opgaver (Bud på bil/Import af bil), som
             bruger dette felt langt mere end Beskrivelse. */}
         <Field label="Note" icon={StickyNote}>
-          <textarea
+          <RichTextEditor
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={isCarDeal ? 8 : 3}
+            onChange={setNotes}
+            minHeightClassName={isCarDeal ? "min-h-48" : "min-h-20"}
             placeholder="Skriv noter, detaljer, huskepunkter …"
-            className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
           />
         </Field>
 
@@ -395,12 +395,11 @@ function ProjectEditor({
           <StickyNote className="size-4 text-primary" />
           Note
         </label>
-        <textarea
+        <RichTextEditor
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          rows={6}
+          onChange={setNotes}
+          minHeightClassName="min-h-36"
           placeholder="Skriv noter, detaljer, huskepunkter …"
-          className="w-full resize-y rounded-xl border border-border/60 bg-background px-3.5 py-2.5 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30"
         />
       </div>
 

@@ -1,6 +1,7 @@
 import type { Priority, Workspace } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
 import type { MailMessage } from "@/features/integrations/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 
 /**
  * Action-liste – bygger et prioriteret, kombineret overblik (Haster/Vigtigt/
@@ -125,7 +126,9 @@ function extractSignals(text: string, fromAddr?: string): Signals {
 }
 
 function taskSignals(task: Task): Signals {
-  return extractSignals([task.title, task.description ?? "", task.notes ?? ""].join(" "));
+  return extractSignals(
+    [task.title, task.description ?? "", stripHtmlInline(task.notes)].join(" "),
+  );
 }
 
 function threadSignals(thread: MailThread): Signals {
@@ -223,7 +226,7 @@ export function buildActionList(
       id: match ? `task:${task.id}+mail:${match.id}` : `task:${task.id}`,
       priority: task.priority,
       title,
-      context: match ? match.snippet : (task.description || task.notes || "").slice(0, 140),
+      context: match ? match.snippet : (task.description || stripHtmlInline(task.notes)).slice(0, 140),
       sourceLabel: match ? "Fra mail + opgave" : "Fra opgavesystemet",
       task,
       mailThread: match ?? undefined,
