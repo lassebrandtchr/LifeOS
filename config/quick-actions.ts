@@ -47,7 +47,14 @@ Storgaard Biler
 (Fx bestemte farver, tidligere udlejningsbil, uden garanti osv.)`;
 
 export const storgaardActions: QuickAction[] = [
-  { kind: "navigate", label: "Ny opgave", icon: Plus, color: "#4f8dff", href: "/opgaver" },
+  {
+    kind: "create-task",
+    label: "Ny opgave",
+    icon: Plus,
+    color: "#4f8dff",
+    title: "Ny opgave",
+    workspace: "work",
+  },
   {
     kind: "create-task",
     label: "Bud på bil",
@@ -93,7 +100,14 @@ export const storgaardActions: QuickAction[] = [
 ];
 
 export const privatActions: QuickAction[] = [
-  { kind: "navigate", label: "Ny opgave", icon: Plus, color: "#4f8dff", href: "/opgaver" },
+  {
+    kind: "create-task",
+    label: "Ny opgave",
+    icon: Plus,
+    color: "#4f8dff",
+    title: "Ny opgave",
+    workspace: "private",
+  },
   { kind: "new-event", label: "Ny aftale", icon: CalendarPlus, color: "#34b3a4", title: "", workspace: "private" },
   {
     kind: "create-task",

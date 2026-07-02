@@ -142,8 +142,9 @@ export async function createTask(
 }
 
 /**
- * Lyn-opret en opgave fra en "Hurtig handling"-knap og returnér dens id, så
- * UI'et bagefter kan åbne editoren (detalje-visningen) for den nye opgave.
+ * Lyn-opret en opgave fra en "Hurtig handling"-knap og returnér den fulde
+ * opgave, så UI'et bagefter kan åbne editoren (detalje-visningen) for den
+ * nye opgave DIREKTE på siden – uden at navigere væk.
  */
 export async function quickCreateTask(params: {
   title: string;
@@ -153,7 +154,7 @@ export async function quickCreateTask(params: {
   note?: string | null;
   bucket?: Bucket;
   status?: Status;
-}): Promise<{ ok?: boolean; id?: string; error?: string }> {
+}): Promise<{ ok?: boolean; task?: Task; error?: string }> {
   const auth = await getAuth();
   if (!auth) return { error: NOT_READY };
 
@@ -174,7 +175,7 @@ export async function quickCreateTask(params: {
         status: params.status ?? "not_started",
         position: Date.now(),
       })
-      .select("id")
+      .select("*")
       .single();
 
     if (error) return { error: error.message };
@@ -183,7 +184,7 @@ export async function quickCreateTask(params: {
     revalidatePath("/");
     revalidatePath("/storgaard-biler");
     revalidatePath("/privat");
-    return { ok: true, id: data.id as string };
+    return { ok: true, task: data as Task };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Ukendt fejl." };
   }

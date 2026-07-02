@@ -35,8 +35,8 @@ export function DashboardTab({
 
   function newTask() {
     quickCreateTask({ title: "Ny marketingopgave", workspace: "work", category: "markedsfoering" }).then((res) => {
-      if (res?.error || !res?.id) { toast.error(res?.error ?? "Kunne ikke oprette."); return; }
-      router.push(`/opgaver?aaben=${res.id}`);
+      if (res?.error || !res?.task) { toast.error(res?.error ?? "Kunne ikke oprette."); return; }
+      router.push(`/opgaver?aaben=${res.task.id}`);
     });
   }
 

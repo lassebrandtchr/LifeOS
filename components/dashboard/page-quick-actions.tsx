@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { SectionCard } from "@/components/dashboard/section-card";
 import { quickCreateTask } from "@/features/tasks/actions";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import type { Workspace, Priority, Status } from "@/features/tasks/constants";
 
 /**
@@ -48,6 +49,7 @@ const item: Variants = {
 
 export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
   const router = useRouter();
+  const { open } = useOpenDetail();
   const [pending, setPending] = React.useState<string | null>(null);
 
   function run(action: QuickAction) {
@@ -67,7 +69,9 @@ export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
       return;
     }
 
-    // create-task → opret og åbn editoren for den nye opgave.
+    // create-task → opret og åbn editoren for den nye opgave i en kasse midt
+    // på SIDEN (samme redigerings-modal som ellers bruges til at redigere
+    // opgaver), uden at navigere væk fra forsiden/Storgaard/Privat.
     setPending(action.label);
     (async () => {
       const res = await quickCreateTask({
@@ -79,12 +83,12 @@ export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
         note: action.note ?? null,
       });
       setPending(null);
-      if (res?.error || !res?.id) {
+      if (res?.error || !res?.task) {
         toast.error(res?.error ?? "Kunne ikke oprette opgaven.");
         return;
       }
-      toast.success(`„${action.title}" oprettet ✓`);
-      router.push(`/opgaver?aaben=${res.id}`);
+      router.refresh();
+      open({ type: "task", task: res.task });
     })();
   }
 
