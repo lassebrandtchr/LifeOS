@@ -25,7 +25,9 @@ import { storgaardActions, privatActions } from "@/config/quick-actions";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { WeatherChip } from "@/components/dashboard/weather-chip";
 import { ActionList } from "@/components/dashboard/action-list";
+import { NewsSection } from "@/components/dashboard/news-section";
 import type { WeatherSnapshot } from "@/lib/weather/types";
+import type { NewsItem } from "@/lib/news/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
 import {
   getEmailDetail,
@@ -154,6 +156,7 @@ function DayBriefing({
   today,
   isWork,
   breakdown,
+  news,
 }: {
   unread: number;
   eventCount: number;
@@ -162,6 +165,7 @@ function DayBriefing({
   today: number;
   isWork: boolean;
   breakdown?: Breakdown;
+  news: NewsItem[];
 }) {
   const bullets: { text: string; tone: "ok" | "warn" | "danger" | "info"; href?: string }[] = [];
 
@@ -230,29 +234,37 @@ function DayBriefing({
 
   return (
     <div className="glass-card rounded-card p-5">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        {isWork ? "ARBEJDSOVERBLIK" : "AFTENOVERBLIK"}
-      </p>
-      <div className="space-y-2">
-        {bullets.map((b, i) => {
-          const dot = <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[b.tone])} />;
-          const label = <span className={cn("text-sm font-medium", toneClass[b.tone])}>{b.text}</span>;
-          return b.href ? (
-            <Link
-              key={i}
-              href={b.href}
-              className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-secondary/50"
-            >
-              {dot}
-              {label}
-            </Link>
-          ) : (
-            <div key={i} className="flex items-center gap-2.5">
-              {dot}
-              {label}
-            </div>
-          );
-        })}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:divide-x md:divide-border/60">
+        <div className="md:pr-5">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {isWork ? "ARBEJDSOVERBLIK" : "AFTENOVERBLIK"}
+          </p>
+          <div className="space-y-2">
+            {bullets.map((b, i) => {
+              const dot = <span className={cn("size-1.5 shrink-0 rounded-full", dotColor[b.tone])} />;
+              const label = <span className={cn("text-sm font-medium", toneClass[b.tone])}>{b.text}</span>;
+              return b.href ? (
+                <Link
+                  key={i}
+                  href={b.href}
+                  className="-mx-1.5 flex items-center gap-2.5 rounded-lg px-1.5 py-0.5 transition-colors hover:bg-secondary/50"
+                >
+                  {dot}
+                  {label}
+                </Link>
+              ) : (
+                <div key={i} className="flex items-center gap-2.5">
+                  {dot}
+                  {label}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="md:pl-5">
+          <NewsSection isWork={isWork} items={news} />
+        </div>
       </div>
     </div>
   );
@@ -823,11 +835,13 @@ export function JarvisDashboard({
   data,
   weather,
   actionGroups,
+  news,
 }: {
   greeting: GreetingResult;
   data: DashboardData;
   weather: WeatherByLocation;
   actionGroups: ActionGroupsByWorkspace;
+  news: { work: NewsItem[]; private: NewsItem[] };
 }) {
   const { stats, emails, todayEvents, tomorrowEvents, unreadCount } = data;
   const isWork = greeting.isWorkHours;
@@ -879,6 +893,7 @@ export function JarvisDashboard({
         <DashboardHeader greeting={greeting} isWork={isWork} weather={weather} />
 
         <DayBriefing
+          news={isWork ? news.work : news.private}
           unread={visibleUnread}
           eventCount={visibleToday.length}
           urgent={view.urgent}

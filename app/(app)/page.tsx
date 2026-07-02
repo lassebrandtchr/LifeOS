@@ -2,19 +2,23 @@ import { JarvisDashboard } from "@/components/dashboard/jarvis-dashboard";
 import { getGreeting } from "@/features/dashboard/greeting";
 import { getDashboardData } from "@/features/dashboard/stats";
 import { getAllWeather } from "@/lib/weather/open-meteo";
+import { getCarIndustryNews, getTechAiNews } from "@/lib/news/google-news";
 import { getMailMessages } from "@/features/integrations/queries";
 import { getTasksByBucket } from "@/features/tasks/queries";
 import { bucketOrder } from "@/features/tasks/constants";
 import { buildActionList } from "@/features/dashboard/action-list";
 
 export default async function HomePage() {
-  const [greeting, data, weather, allMails, taskBuckets] = await Promise.all([
+  const [greeting, data, weather, allMails, taskBuckets, carNews, techNews] = await Promise.all([
     Promise.resolve(getGreeting()),
     getDashboardData(),
     getAllWeather(),
     getMailMessages(50),
     getTasksByBucket(),
+    getCarIndustryNews(6),
+    getTechAiNews(6),
   ]);
+  const news = { work: carNews, private: techNews };
 
   // Samme Action-liste-logik som /storgaard-biler og /privat (buildActionList),
   // så forsidens lille udgave altid stemmer overens med undersidernes fulde
@@ -38,6 +42,7 @@ export default async function HomePage() {
       data={data}
       weather={weather}
       actionGroups={actionGroups}
+      news={news}
     />
   );
 }

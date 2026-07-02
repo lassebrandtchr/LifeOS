@@ -82,7 +82,12 @@ export function NoteItemAttachments({ itemId }: { itemId: string }) {
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
     setUploading(false);
     if (error) {
-      toast.error("Kunne ikke vedhæfte filen. Prøv igen.");
+      const missingBucket = /bucket/i.test(error.message);
+      toast.error(
+        missingBucket
+          ? "Filvedhæftning er ikke slået til endnu (kør migration 0008 i Supabase)."
+          : `Kunne ikke vedhæfte filen: ${error.message}`,
+      );
       return;
     }
     toast.success("Vedhæftet ✓");
