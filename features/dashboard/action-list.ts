@@ -29,7 +29,7 @@ export type ActionSourceLabel =
 
 export type ActionItem = {
   id: string;
-  priority: Exclude<Priority, "low">;
+  priority: Priority;
   title: string;
   context: string;
   sourceLabel: ActionSourceLabel;
@@ -144,7 +144,7 @@ type SenderRule = {
   subjectOrBodyMatch?: RegExp;
   /** "" = behold trådens/opgavens egen titel, kun prioritet påvirkes. */
   title: string;
-  priority: Exclude<Priority, "low">;
+  priority: Priority;
   appliesTo: "work" | "private" | "both";
 };
 
@@ -199,10 +199,6 @@ function matchTaskToThread(
   return null;
 }
 
-function normalizePriority(p: Priority): Exclude<Priority, "low"> {
-  return p === "low" ? "can_wait" : p;
-}
-
 // ────────────────────────────── Hovedfunktion ─────────────────────────────
 
 export function buildActionList(
@@ -225,7 +221,7 @@ export function buildActionList(
 
     items.push({
       id: match ? `task:${task.id}+mail:${match.id}` : `task:${task.id}`,
-      priority: normalizePriority(task.priority),
+      priority: task.priority,
       title,
       context: match ? match.snippet : (task.description || task.notes || "").slice(0, 140),
       sourceLabel: match ? "Fra mail + opgave" : "Fra opgavesystemet",

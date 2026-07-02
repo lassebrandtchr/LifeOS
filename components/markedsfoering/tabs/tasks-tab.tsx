@@ -93,7 +93,7 @@ function TasksInner({ tasks, autoCreate }: { tasks: Task[]; autoCreate: boolean 
 function TaskRow({ task }: { task: Task }) {
   const { open } = useOpenDetail();
   const cat = categoryById(task.category);
-  const prio = priorities[task.priority as Priority];
+  const prio = priorities[task.priority as Priority] ?? priorities.can_wait;
   const deadline = task.deadline
     ? new Date(task.deadline).toLocaleDateString("da-DK", { day: "numeric", month: "short" })
     : null;

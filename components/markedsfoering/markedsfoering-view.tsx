@@ -33,7 +33,7 @@ function formatDate(value: string | null): string | null {
 function TaskRow({ task }: { task: Task }) {
   const { open } = useOpenDetail();
   const cat = categoryById(task.category);
-  const prio = priorities[task.priority];
+  const prio = priorities[task.priority] ?? priorities.can_wait;
   const deadline = formatDate(task.deadline);
   const done = task.status === "done";
   return (

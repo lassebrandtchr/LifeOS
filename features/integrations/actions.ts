@@ -40,7 +40,7 @@ async function getAuth() {
  * bliver vigtigt/haster af sig selv.
  */
 function derivePriority(deadlineISO: string | null, status: string): string {
-  if (status === "done" || status === "archived") return "low";
+  if (status === "done" || status === "archived") return "can_wait";
   if (!deadlineISO) return "can_wait";
   const deadline = new Date(deadlineISO).getTime();
   if (Number.isNaN(deadline)) return "can_wait";
@@ -49,8 +49,7 @@ function derivePriority(deadlineISO: string | null, status: string): string {
   const diffDays = Math.floor((deadline - startOfToday.getTime()) / 86_400_000);
   if (diffDays <= 0) return "urgent"; // forfalden eller i dag
   if (diffDays <= 2) return "important"; // inden for 2 dage
-  if (diffDays <= 7) return "can_wait"; // denne uge
-  return "low"; // langt ude i fremtiden
+  return "can_wait"; // denne uge og langt ude i fremtiden
 }
 
 /**

@@ -5,7 +5,8 @@
  */
 
 // ───────────────────────────── Prioriteter ──────────────────────────────
-export type Priority = "urgent" | "important" | "can_wait" | "low";
+// Kun tre niveauer – der findes bevidst ikke en "lav prioritet"-kategori.
+export type Priority = "urgent" | "important" | "can_wait";
 
 export const priorities: Record<
   Priority,
@@ -13,11 +14,10 @@ export const priorities: Record<
 > = {
   urgent: { label: "Haster", emoji: "🔴", dot: "bg-destructive", text: "text-destructive" },
   important: { label: "Vigtigt", emoji: "🟠", dot: "bg-warning", text: "text-warning" },
-  can_wait: { label: "Kan vente", emoji: "🟡", dot: "bg-yellow-400", text: "text-yellow-500" },
-  low: { label: "Lav prioritet", emoji: "🟢", dot: "bg-success", text: "text-success" },
+  can_wait: { label: "Kan vente", emoji: "🟢", dot: "bg-success", text: "text-success" },
 };
 
-export const priorityOrder: Priority[] = ["urgent", "important", "can_wait", "low"];
+export const priorityOrder: Priority[] = ["urgent", "important", "can_wait"];
 
 // ─────────────────────────────── Statusser ──────────────────────────────
 export type Status =

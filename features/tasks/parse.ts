@@ -244,7 +244,7 @@ export function parseTaskInput(input: string, now: Date = new Date()): ParsedTas
       lower,
     )
   ) {
-    priority = "low";
+    priority = "can_wait";
   }
 
   // 2) Ellers: udled prioritet af deadline, så ALT ikke ender som "kan vente".
@@ -253,8 +253,7 @@ export function parseTaskInput(input: string, now: Date = new Date()): ParsedTas
     const diffDays = Math.floor((deadline.getTime() - startOfToday) / 86_400_000);
     if (diffDays <= 0) priority = "urgent"; // i dag / forfalden
     else if (diffDays <= 2) priority = "important"; // inden for 2 dage
-    else if (diffDays <= 7) priority = "can_wait"; // denne uge
-    else priority = "low"; // langt ude
+    else priority = "can_wait"; // denne uge og langt ude
   }
 
   // ───────────────────────────── Rens titlen ────────────────────────────

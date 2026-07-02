@@ -58,7 +58,7 @@ export function DashboardTab({
     urgent: active.filter((t) => t.priority === "urgent"),
     today: active.filter((t) => t.bucket === "today"),
     week: active.filter((t) => t.bucket === "week"),
-    later: active.filter((t) => t.priority === "low" || t.bucket === "later"),
+    later: active.filter((t) => t.bucket === "later"),
   };
   const upcomingEvents = [...events]
     .filter((e) => !e.done && e.event_date.slice(0, 10) >= today)

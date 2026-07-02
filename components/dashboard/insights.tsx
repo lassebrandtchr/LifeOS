@@ -126,8 +126,7 @@ export function CompletedTrendCard({ stats }: { stats: DashboardStats }) {
 const priorityColor: Record<Priority, string> = {
   urgent: "var(--destructive)",
   important: "var(--warning)",
-  can_wait: "var(--primary)",
-  low: "var(--success)",
+  can_wait: "var(--success)",
 };
 
 export function PriorityCard({ stats }: { stats: DashboardStats }) {

@@ -16,16 +16,16 @@ import { priorities } from "@/features/tasks/constants";
 import type { Workspace, Priority } from "@/features/tasks/constants";
 import type { ActionItem, ActionListGroups } from "@/features/dashboard/action-list";
 
-const GROUP_ORDER: Exclude<Priority, "low">[] = ["urgent", "important", "can_wait"];
+const GROUP_ORDER: Priority[] = ["urgent", "important", "can_wait"];
 
 // Farvet prioritets-badge pr. opgave (erstatter de tidligere gruppe-
 // overskrifter "HASTER · 3" osv.) – literal klasse-strenge, så Tailwinds
 // JIT-scanner rent faktisk genererer dem (dynamisk sammensatte klassenavne
 // bliver IKKE fundet af scanneren).
-const priorityBadgeClass: Record<Exclude<Priority, "low">, string> = {
+const priorityBadgeClass: Record<Priority, string> = {
   urgent: "border-destructive/40 bg-destructive/10 text-destructive",
   important: "border-warning/40 bg-warning/10 text-warning",
-  can_wait: "border-yellow-400/40 bg-yellow-400/10 text-yellow-500",
+  can_wait: "border-success/40 bg-success/10 text-success",
 };
 
 /**
@@ -67,7 +67,7 @@ export function ActionList({
     });
   }
 
-  const visible: Record<Exclude<Priority, "low">, ActionItem[]> = {
+  const visible: Record<Priority, ActionItem[]> = {
     urgent: groups.urgent.filter((i) => !i.task || !removedTaskIds.has(i.task.id)),
     important: groups.important.filter((i) => !i.task || !removedTaskIds.has(i.task.id)),
     can_wait: groups.can_wait.filter((i) => !i.task || !removedTaskIds.has(i.task.id)),
@@ -77,7 +77,7 @@ export function ActionList({
   // Skær ned til `limit` linjer i alt (Haster går forud for Vigtigt, som går
   // forud for Kan vente), uden at ændre den underliggende rækkefølge.
   let remaining = limit ?? Infinity;
-  const shown: Record<Exclude<Priority, "low">, ActionItem[]> = { urgent: [], important: [], can_wait: [] };
+  const shown: Record<Priority, ActionItem[]> = { urgent: [], important: [], can_wait: [] };
   for (const key of GROUP_ORDER) {
     if (remaining <= 0) break;
     shown[key] = visible[key].slice(0, remaining);
@@ -196,10 +196,10 @@ function ActionRow({
           <span
             className={cn(
               "mt-0.5 inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-              priorityBadgeClass[item.priority],
+              priorityBadgeClass[item.priority] ?? priorityBadgeClass.can_wait,
             )}
           >
-            {priorities[item.priority].label}
+            {priorities[item.priority]?.label ?? priorities.can_wait.label}
           </span>
           <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
         </div>

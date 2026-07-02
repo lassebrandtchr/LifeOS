@@ -52,7 +52,7 @@ async function markSynced(
  * så ikke ALT lander som "kan vente".
  */
 function derivePriority(deadlineISO: string | null, status: string): string {
-  if (status === "done" || status === "archived") return "low";
+  if (status === "done" || status === "archived") return "can_wait";
   if (!deadlineISO) return "can_wait";
   const deadline = new Date(deadlineISO).getTime();
   if (Number.isNaN(deadline)) return "can_wait";
@@ -61,8 +61,7 @@ function derivePriority(deadlineISO: string | null, status: string): string {
   const diffDays = Math.floor((deadline - startOfToday.getTime()) / 86_400_000);
   if (diffDays <= 0) return "urgent";
   if (diffDays <= 2) return "important";
-  if (diffDays <= 7) return "can_wait";
-  return "low";
+  return "can_wait";
 }
 
 // ───────────────────────────── Google Kalender ──────────────────────────
