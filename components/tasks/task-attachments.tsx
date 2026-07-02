@@ -77,10 +77,11 @@ export function TaskAttachments({ taskId }: { taskId: string }) {
     });
     setUploading(false);
     if (error) {
+      const missingBucket = unavailable || /bucket/i.test(error.message);
       toast.error(
-        unavailable
-          ? "Filupload er ikke slået til endnu (kør migration 0008)."
-          : "Kunne ikke uploade filen. Prøv igen.",
+        missingBucket
+          ? "Filupload er ikke slået til endnu (kør migration 0008 i Supabase)."
+          : `Kunne ikke uploade filen: ${error.message}`,
       );
       return;
     }

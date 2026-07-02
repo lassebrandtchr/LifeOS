@@ -66,10 +66,17 @@ function parseGoogleNewsRss(xml: string, limit: number): NewsItem[] {
   return items;
 }
 
-async function fetchGoogleNews(query: string, limit: number): Promise<NewsItem[]> {
+async function fetchGoogleNews(
+  query: string,
+  limit: number,
+  locale: { hl: string; gl: string; ceid: string },
+): Promise<NewsItem[]> {
   try {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
-    const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS } });
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${locale.hl}&gl=${locale.gl}&ceid=${locale.ceid}`;
+    // Google omdirigerer nogle gange til en "korrekt" region ud fra
+    // serverens IP – "redirect: follow" (fetch-standard) følger den, ellers
+    // får vi et tomt svar i stedet for artikler.
+    const res = await fetch(url, { next: { revalidate: REVALIDATE_SECONDS }, redirect: "follow" });
     if (!res.ok) return [];
     const xml = await res.text();
     return parseGoogleNewsRss(xml, limit);
@@ -78,9 +85,53 @@ async function fetchGoogleNews(query: string, limit: number): Promise<NewsItem[]
   }
 }
 
+const EN_LOCALE = { hl: "en-US", gl: "US", ceid: "US:en" };
+const DA_LOCALE = { hl: "da", gl: "DK", ceid: "DK:da" };
+
+// Lasses foretrukne danske medier – prøves FØRST, uanset emne.
+const DANISH_SITES = [
+  "meremobil.dk",
+  "inputmag.dk",
+  "recordere.dk",
+  "techradar.com",
+  "hvilkenbil.dk",
+];
+const DANISH_SITE_FILTER = `(${DANISH_SITES.map((s) => `site:${s}`).join(" OR ")})`;
+
+/**
+ * Henter primært danske nyheder fra de foretrukne medier; suppleret med
+ * globale/engelske nyheder, hvis der ikke er nok danske at vise. Deduplikeret
+ * på URL, så en artikel aldrig optræder to gange.
+ */
+async function fetchLayeredNews(
+  danishTopicQuery: string,
+  englishTopicQuery: string,
+  limit: number,
+): Promise<NewsItem[]> {
+  const danish = await fetchGoogleNews(
+    `${DANISH_SITE_FILTER} (${danishTopicQuery})`,
+    limit,
+    DA_LOCALE,
+  );
+  if (danish.length >= limit) return danish.slice(0, limit);
+
+  const seen = new Set(danish.map((d) => d.url));
+  const fallback = await fetchGoogleNews(englishTopicQuery, limit, EN_LOCALE);
+  const combined = [...danish];
+  for (const item of fallback) {
+    if (combined.length >= limit) break;
+    if (!seen.has(item.url)) {
+      combined.push(item);
+      seen.add(item.url);
+    }
+  }
+  return combined;
+}
+
 /** Arbejdstid: nyt om elbiler, fossilbiler, ladestandere og bilbranchen globalt. */
 export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
-  return fetchGoogleNews(
+  return fetchLayeredNews(
+    "elbil OR elbiler OR ladestander OR bilbranchen OR bilmærker OR bil",
     '(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (EV charging stations) when:2d',
     limit,
   );
@@ -88,7 +139,8 @@ export async function getCarIndustryNews(limit = 6): Promise<NewsItem[]> {
 
 /** Privat tid: mest AI/tech/consumer electronics, med lidt bilnyt blandet ind. */
 export async function getTechAiNews(limit = 6): Promise<NewsItem[]> {
-  return fetchGoogleNews(
+  return fetchLayeredNews(
+    "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
     '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles) when:2d',
     limit,
   );
