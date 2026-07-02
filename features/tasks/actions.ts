@@ -6,22 +6,9 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { searchAll } from "@/features/tasks/queries";
 import { parseTaskInput } from "@/features/tasks/parse";
+import { deriveBucketFromDeadline as deriveBucket } from "@/features/tasks/bucket";
 import type { Bucket, Priority, Status, Workspace } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
-
-/** Udleder hvilken kolonne en opgave hører til ud fra dens deadline. */
-function deriveBucket(deadline: Date | null): Bucket {
-  if (!deadline) return "today";
-  const now = new Date();
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const diffDays = Math.floor(
-    (deadline.getTime() - startOfToday.getTime()) / 86_400_000,
-  );
-  if (diffDays <= 0) return "today";
-  if (diffDays <= 7) return "week";
-  return "later";
-}
 
 /** Global søgning (kaldes fra topbarens søgefelt). */
 export async function searchAction(query: string) {
@@ -121,7 +108,8 @@ export async function createTask(
         priority,
         category,
         deadline,
-        reminder_at: deadline, // påmindelse = samme tidspunkt som deadline
+        // Påmindelse er sin egen ting (sættes i editoren), ikke automatisk lig deadline.
+        reminder_at: null,
         status: "not_started",
         position: Date.now(),
       })
@@ -353,6 +341,7 @@ export async function updateTask(
     bucket?: Bucket;
     category?: string | null;
     deadline?: string | null; // ISO eller null
+    reminder_at?: string | null; // ISO eller null – uafhængig af deadline
     notes?: string | null;
     trade_in?: string | null;
   },
@@ -374,10 +363,8 @@ export async function updateTask(
   if (fields.category !== undefined) update.category = fields.category || null;
   if (fields.notes !== undefined) update.notes = fields.notes?.trim() || null;
   if (fields.trade_in !== undefined) update.trade_in = fields.trade_in?.trim() || null;
-  if (fields.deadline !== undefined) {
-    update.deadline = fields.deadline || null;
-    update.reminder_at = fields.deadline || null;
-  }
+  if (fields.deadline !== undefined) update.deadline = fields.deadline || null;
+  if (fields.reminder_at !== undefined) update.reminder_at = fields.reminder_at || null;
   if (fields.status !== undefined) {
     update.status = fields.status;
     update.completed_at =
@@ -461,6 +448,30 @@ export async function updateTaskNotes(
     return { ok: true };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Ukendt fejl." };
+  }
+}
+
+/**
+ * Opgaver med en "Påmind mig"-tid, der er nået (eller overskredet), og som
+ * ikke er markeret færdige – bruges af ReminderWatcher til at vise den
+ * globale, pulserende pop op-notifikation uanset hvilken side man er på.
+ * Fuld Task-række (ikke kun et par felter), så klik kan åbne editoren
+ * direkte via useOpenDetail() uden en ekstra tur til serveren.
+ */
+export async function getDueReminders(): Promise<Task[]> {
+  const auth = await getAuth();
+  if (!auth) return [];
+  try {
+    const { data } = await auth.supabase
+      .from("tasks")
+      .select("*")
+      .eq("user_id", auth.userId)
+      .not("reminder_at", "is", null)
+      .neq("status", "done")
+      .lte("reminder_at", new Date().toISOString());
+    return (data ?? []) as Task[];
+  } catch {
+    return [];
   }
 }
 

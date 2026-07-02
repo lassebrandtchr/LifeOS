@@ -1,0 +1,118 @@
+"use client";
+
+import * as React from "react";
+import { Bell, X, Clock } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+
+import { getDueReminders, updateTask } from "@/features/tasks/actions";
+import { useOpenDetail } from "@/components/tasks/detail-context";
+import type { Task } from "@/features/tasks/types";
+
+const POLL_MS = 30_000;
+
+function fmtReminder(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("da-DK", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = d.toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" });
+  return `${date} kl. ${time}`;
+}
+
+/**
+ * ReminderWatcher – poller hvert 30. sekund for opgaver hvor "Påmind mig"-
+ * tiden er nået, og viser en tydelig, glødende grøn, let "vibrerende"
+ * pop op i højre side af appen (uanset hvilken side man er på) – lige
+ * præcis som efterspurgt. Forsvinder først når man klikker den (åbner
+ * opgaven) eller lukker den eksplicit – begge dele rydder samtidig
+ * reminder_at server-side, så den aldrig dukker op igen af sig selv.
+ *
+ * Bevidst uden localStorage-tracking: at rydde reminder_at i databasen ved
+ * lukning er den enkle, robuste kilde til sandhed (virker på tværs af
+ * faneblade/enheder), i stedet for at holde en separat "set" af set-id'er.
+ */
+export function ReminderWatcher() {
+  const [active, setActive] = React.useState<Task[]>([]);
+  const { open } = useOpenDetail();
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function poll() {
+      const due = await getDueReminders();
+      if (cancelled) return;
+      setActive((prev) => {
+        const prevIds = new Set(prev.map((t) => t.id));
+        const fresh = due.filter((t) => !prevIds.has(t.id));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
+      });
+    }
+
+    poll();
+    const id = setInterval(poll, POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  function dismiss(task: Task) {
+    setActive((prev) => prev.filter((t) => t.id !== task.id));
+    void updateTask(task.id, { reminder_at: null });
+  }
+
+  function openTask(task: Task) {
+    open({ type: "task", task });
+    dismiss(task);
+  }
+
+  return (
+    <div className="pointer-events-none fixed right-4 top-20 z-[100] flex flex-col gap-3 sm:right-6">
+      <AnimatePresence>
+        {active.map((task) => (
+          <motion.div
+            key={task.id}
+            layout
+            initial={{ opacity: 0, x: 60, scale: 0.92 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
+            transition={{ type: "spring", stiffness: 340, damping: 26 }}
+            className="reminder-toast pointer-events-auto w-[300px] rounded-2xl border border-emerald-400/50 p-4"
+            style={{
+              backgroundImage:
+                "linear-gradient(135deg, color-mix(in oklab, #22c55e 16%, var(--card)) 0%, var(--card) 70%)",
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+                <Bell className="size-4.5" />
+              </span>
+              <button
+                type="button"
+                onClick={() => openTask(task)}
+                className="min-w-0 flex-1 text-left"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-success">
+                  Påmindelse
+                </p>
+                <p className="mt-0.5 text-sm font-semibold leading-snug text-foreground">
+                  {task.title}
+                </p>
+                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                  <Clock className="size-3" />
+                  {task.reminder_at && fmtReminder(task.reminder_at)}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => dismiss(task)}
+                aria-label="Luk påmindelse"
+                className="flex size-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+              >
+                <X className="size-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}

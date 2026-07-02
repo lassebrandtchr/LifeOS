@@ -358,3 +358,37 @@
   color: var(--muted-foreground);
   opacity: 0.7;
 }
+
+/* ------------------------- PÅMINDELSES-NOTIFIKATION --------------------- */
+/* Glødende grøn, "ryster" i et roligt loop indtil den bliver lukket eller
+   klikket (ReminderWatcher) – bevidst IKKE en irriterende hurtig ryste-
+   animation, men et blødt, tydeligt "vibrer"-udtryk. Respekterer den
+   eksisterende prefers-reduced-motion-regel længere nede i filen (den sætter
+   animation-duration: 0.01ms !important på alt). */
+@keyframes reminder-shake {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-2px) rotate(-0.3deg); }
+  20% { transform: translateX(2px) rotate(0.3deg); }
+  30% { transform: translateX(-2px) rotate(-0.3deg); }
+  40% { transform: translateX(2px) rotate(0.3deg); }
+  50%, 100% { transform: translateX(0) rotate(0); }
+}
+@keyframes reminder-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, #22c55e 70%, transparent),
+      0 0 16px 2px color-mix(in oklab, #22c55e 55%, transparent),
+      0 8px 28px -6px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, #22c55e 90%, transparent),
+      0 0 32px 8px color-mix(in oklab, #22c55e 75%, transparent),
+      0 8px 28px -6px rgba(0, 0, 0, 0.35);
+  }
+}
+.reminder-toast {
+  animation:
+    reminder-shake 2.6s ease-in-out infinite,
+    reminder-glow 1.8s ease-in-out infinite;
+}

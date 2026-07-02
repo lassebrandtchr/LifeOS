@@ -149,8 +149,12 @@ export async function syncGmailCore(
     await supabase.from("emails").insert(rows);
     await markSynced(supabase, userId, "gmail");
     return { source: "gmail", ok: true, count: rows.length };
-  } catch {
-    return { source: "gmail", ok: false, error: "Synk fejlede." };
+  } catch (e) {
+    // listGmailMessages kaster nu en rigtig fejl ved et fejlet API-kald
+    // (fx udløbet token) i stedet for at give en tom liste – ellers ville
+    // et fejlet kald blive fortolket som "tom indbakke", og den gamle,
+    // stadig-forkerte cache ville aldrig blive opdateret eller flagget.
+    return { source: "gmail", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }
 
@@ -357,7 +361,9 @@ export async function syncNotionTasksCore(
           source: "notion",
           notion_id: t.notionId,
           deadline: t.deadline,
-          reminder_at: t.deadline,
+          // Påmindelse er nu sin egen ting, som Lasse selv sætter i editoren
+          // – ikke automatisk lig deadline.
+          reminder_at: null,
           status: t.status,
           completed_at,
           category: t.category,

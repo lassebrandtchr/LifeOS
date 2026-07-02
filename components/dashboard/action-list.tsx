@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight } from "lucide-react";
+import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight, CalendarClock, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -27,6 +27,14 @@ const priorityBadgeClass: Record<Priority, string> = {
   important: "border-warning/40 bg-warning/10 text-warning",
   can_wait: "border-success/40 bg-success/10 text-success",
 };
+
+/** "03.07.2026 kl 12.00" – samme format Lasse selv brugte som eksempel. */
+function fmtDateBadge(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("da-DK", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = d.toLocaleTimeString("da-DK", { hour: "2-digit", minute: "2-digit" }).replace(":", ".");
+  return `${date} kl ${time}`;
+}
 
 /**
  * Action-liste – prioriteret overblik (Haster/Vigtigt/Kan vente), kombineret
@@ -62,6 +70,7 @@ export function ActionList({
       if (res?.error) toast.error(res.error);
       else {
         toast.success(res?.message ?? "Opdateret ✓");
+        if (res?.warning) toast.warning(res.warning);
         router.refresh();
       }
     });
@@ -223,6 +232,18 @@ function ActionRow({
           {tradeIn && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
               <Car className="size-3" /> {tradeIn}
+            </span>
+          )}
+          {item.task?.deadline && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+              <CalendarClock className="size-3" />
+              Deadline d. {fmtDateBadge(item.task.deadline)}
+            </span>
+          )}
+          {item.task?.reminder_at && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium" style={{ color: "#a78bfa" }}>
+              <Bell className="size-3" />
+              Påmindelse d. {fmtDateBadge(item.task.reminder_at)}
             </span>
           )}
         </div>

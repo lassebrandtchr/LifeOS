@@ -95,11 +95,19 @@ export function DeadlinePicker({
   value,
   onChange,
   className,
+  accentColor,
+  placeholderText = "Vælg dato og tid",
+  icon: Icon = CalendarIcon,
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  /** CSS-farveværdi til valgt dag/"I dag"-knap – default appens primærgrønne (Deadline). Sæt en anden for fx "Påmind mig", så de kan skelnes visuelt. */
+  accentColor?: string;
+  placeholderText?: string;
+  icon?: React.ElementType;
 }) {
+  const accent = accentColor ?? "var(--primary)";
   const [open, setOpen] = React.useState(false);
   const parsed = parseLocalValue(value);
   const [viewDate, setViewDate] = React.useState(() => parsed.date ?? new Date());
@@ -144,9 +152,9 @@ export function DeadlinePicker({
           )}
         >
           <span className={value ? "text-foreground" : "text-muted-foreground"}>
-            {value ? fmtDisplay(value) : "Vælg dato og tid"}
+            {value ? fmtDisplay(value) : placeholderText}
           </span>
-          <CalendarIcon className="size-4 shrink-0 text-muted-foreground" />
+          <Icon className="size-4 shrink-0 text-muted-foreground" style={value ? { color: accent } : undefined} />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -200,12 +208,15 @@ export function DeadlinePicker({
                   onClick={() => pickDay(d)}
                   className={cn(
                     "flex aspect-square items-center justify-center rounded-lg text-sm font-medium transition-colors",
-                    isSelected
-                      ? "bg-primary text-primary-foreground shadow-glow"
-                      : isToday
-                        ? "text-primary ring-1 ring-primary/50 hover:bg-primary/10"
-                        : "text-foreground/85 hover:bg-secondary",
+                    !isSelected && !isToday && "text-foreground/85 hover:bg-secondary",
                   )}
+                  style={
+                    isSelected
+                      ? { backgroundColor: accent, color: "white" }
+                      : isToday
+                        ? { color: accent, boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${accent} 50%, transparent)` }
+                        : undefined
+                  }
                 >
                   {d.getDate()}
                 </button>
@@ -237,7 +248,8 @@ export function DeadlinePicker({
                 setViewDate(now);
                 onChange(toLocalValue(now, pad(now.getHours()), pad(now.getMinutes())));
               }}
-              className="text-xs font-medium text-primary hover:underline"
+              style={{ color: accent }}
+              className="text-xs font-medium hover:underline"
             >
               I dag
             </button>

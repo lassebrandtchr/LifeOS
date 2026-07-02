@@ -3,27 +3,23 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, StickyNote, FolderKanban, CheckSquare, Type, Car } from "lucide-react";
+import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AutoGrowTextarea } from "@/components/ui/autogrow-textarea";
 import {
   categories,
   priorities,
   priorityOrder,
-  statuses,
-  statusOrder,
-  buckets,
-  bucketOrder,
   workspaces,
   type Workspace,
   type Priority,
-  type Status,
   type Bucket,
 } from "@/features/tasks/constants";
 import { updateTask, updateProjectNotes } from "@/features/tasks/actions";
+import { deriveBucketFromDeadline } from "@/features/tasks/bucket";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
@@ -148,10 +144,10 @@ type TaskFields = {
   description: string | null;
   workspace: Workspace;
   priority: Priority;
-  status: Status;
   bucket: Bucket;
   category: string | null;
   deadline: string | null;
+  reminder_at: string | null;
   notes: string | null;
   trade_in: string | null;
 };
@@ -173,12 +169,9 @@ function TaskEditor({
     task.workspace === "work" ? "work" : "private",
   );
   const [priority, setPriority] = React.useState<Priority>(task.priority);
-  const [status, setStatus] = React.useState<Status>(task.status);
-  const [bucket, setBucket] = React.useState<Bucket>(
-    (bucketOrder as string[]).includes(task.bucket) ? (task.bucket as Bucket) : "later",
-  );
   const [category, setCategory] = React.useState<string>(task.category ?? "");
   const [deadline, setDeadline] = React.useState(isoToLocalInput(task.deadline));
+  const [reminderAt, setReminderAt] = React.useState(isoToLocalInput(task.reminder_at));
   const [notes, setNotes] = React.useState(task.notes ?? "");
   const [tradeIn, setTradeIn] = React.useState(task.trade_in ?? "");
 
@@ -204,15 +197,19 @@ function TaskEditor({
       toast.error("Opgaven skal have et emne.");
       return;
     }
+    const deadlineIso = localInputToIso(deadline);
     onSave({
       title,
       description: description.trim() || null,
       workspace,
       priority,
-      status,
-      bucket,
+      // "Hvornår"-feltet er fjernet fra editoren – bucket (i dag/uge/senere)
+      // udledes nu altid af deadline, i stedet for at fryse på en gammel
+      // manuel værdi, hvis deadline ændres her.
+      bucket: deriveBucketFromDeadline(deadlineIso ? new Date(deadlineIso) : null),
       category: category || null,
-      deadline: localInputToIso(deadline),
+      deadline: deadlineIso,
+      reminder_at: localInputToIso(reminderAt),
       notes: notes.trim() || null,
       trade_in: tradeIn.trim() || null,
     });
@@ -244,13 +241,13 @@ function TaskEditor({
 
       {/* Indhold (scroller kun hvis nødvendigt) */}
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
-        {/* Emne */}
+        {/* Emne – vokser nedad ligesom Note, i stedet for at klippe lange titler af. */}
         <Field label="Emne" icon={Type}>
-          <Input
+          <AutoGrowTextarea
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={setTitle}
             placeholder="Hvad skal der ske?"
-            className="h-9 font-medium"
+            className="font-medium"
           />
         </Field>
 
@@ -270,23 +267,6 @@ function TaskEditor({
               ))}
             </select>
           </Field>
-          <Field label="Status">
-            <select className={selectClass} value={status} onChange={(e) => setStatus(e.target.value as Status)}>
-              {statusOrder.map((s) => (
-                <option key={s} value={s}>{statuses[s].label}</option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Hvornår">
-            <select className={selectClass} value={bucket} onChange={(e) => setBucket(e.target.value as Bucket)}>
-              {bucketOrder.map((b) => (
-                <option key={b} value={b}>{buckets[b].label}</option>
-              ))}
-            </select>
-          </Field>
           <Field label="Kategori">
             <select className={selectClass} value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="">Ingen</option>
@@ -296,6 +276,20 @@ function TaskEditor({
             </select>
           </Field>
         </div>
+
+        {/* Påmind mig – samme slags felt som Deadline, men egen (lilla)
+            accentfarve, så de to kan skelnes ved et blik. Uafhængig af
+            deadline: udløser en global pop op-notifikation på det valgte
+            tidspunkt, uanset hvilken side man er på (se ReminderWatcher). */}
+        <Field label="Påmind mig" icon={Bell}>
+          <DeadlinePicker
+            value={reminderAt}
+            onChange={setReminderAt}
+            accentColor="#a78bfa"
+            icon={Bell}
+            placeholderText="Sæt en påmindelse"
+          />
+        </Field>
 
         <Field label="Deadline">
           <DeadlinePicker value={deadline} onChange={setDeadline} />

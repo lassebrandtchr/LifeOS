@@ -18,7 +18,7 @@ import { connectorById } from "@/features/integrations/registry";
  */
 
 export type IntegrationActionState =
-  | { ok?: boolean; error?: string; message?: string }
+  | { ok?: boolean; error?: string; message?: string; warning?: string }
   | undefined;
 
 const NOT_READY =
@@ -293,25 +293,37 @@ export async function syncEverythingNow(): Promise<IntegrationActionState> {
   } = await import("@/features/integrations/sync-core");
 
   let ran = 0;
+  // Kald blev tidligere ikke tjekket for fejl her – et fejlet Gmail-kald
+  // (fx udløbet token) blev stille slugt, og "Synk nu" sagde ALTID "Alt er
+  // synkroniseret", selvom det reelt ikke var sandt. Nu samles fejl op og
+  // vises som en advarsel, mens de kilder der RENT FAKTISK lykkedes stadig
+  // regnes for en succes.
+  const failures: string[] = [];
 
   const googleToken = await getValidAccessToken();
   if (googleToken) {
-    await syncGmailCore(auth.supabase, auth.userId, googleToken);
-    await syncGoogleCalendarCore(auth.supabase, auth.userId, googleToken);
+    const gmail = await syncGmailCore(auth.supabase, auth.userId, googleToken);
+    if (!gmail.ok) failures.push(`Gmail (${gmail.error ?? "ukendt fejl"})`);
+    const googleCal = await syncGoogleCalendarCore(auth.supabase, auth.userId, googleToken);
+    if (!googleCal.ok) failures.push(`Google Kalender (${googleCal.error ?? "ukendt fejl"})`);
     ran++;
   }
 
   const msToken = await getValidMicrosoftToken();
   if (msToken) {
-    await syncOutlookMailCore(auth.supabase, auth.userId, msToken);
-    await syncOutlookCalendarCore(auth.supabase, auth.userId, msToken);
+    const outlookMail = await syncOutlookMailCore(auth.supabase, auth.userId, msToken);
+    if (!outlookMail.ok) failures.push(`Outlook mail (${outlookMail.error ?? "ukendt fejl"})`);
+    const outlookCal = await syncOutlookCalendarCore(auth.supabase, auth.userId, msToken);
+    if (!outlookCal.ok) failures.push(`Outlook kalender (${outlookCal.error ?? "ukendt fejl"})`);
     ran++;
   }
 
   const notionToken = await getNotionToken();
   if (notionToken) {
-    await syncNotionTasksCore(auth.supabase, auth.userId, notionToken);
-    await syncNotionPagesCore(auth.supabase, auth.userId, notionToken);
+    const notionTasks = await syncNotionTasksCore(auth.supabase, auth.userId, notionToken);
+    if (!notionTasks.ok) failures.push(`Notion opgaver (${notionTasks.error ?? "ukendt fejl"})`);
+    const notionPages = await syncNotionPagesCore(auth.supabase, auth.userId, notionToken);
+    if (!notionPages.ok) failures.push(`Notion sider (${notionPages.error ?? "ukendt fejl"})`);
     ran++;
   }
 
@@ -319,6 +331,10 @@ export async function syncEverythingNow(): Promise<IntegrationActionState> {
 
   for (const p of ["/", "/mail", "/kalender", "/opgaver", "/storgaard-biler", "/privat", "/markedsfoering", "/indstillinger"]) {
     revalidatePath(p);
+  }
+
+  if (failures.length > 0) {
+    return { ok: true, message: "Synk delvist gennemført.", warning: failures.join(" · ") };
   }
   return { ok: true, message: "Alt er synkroniseret." };
 }
@@ -462,13 +478,13 @@ export async function syncNotionTasks(): Promise<IntegrationActionState> {
     // 3) Slå allerede-importerede Notion-opgaver op (dedup på notion_id).
     const { data: existing } = await auth.supabase
       .from("tasks")
-      .select("id, notion_id")
+      .select("id, notion_id, status")
       .eq("user_id", auth.userId)
       .not("notion_id", "is", null);
 
-    const byNotionId = new Map<string, string>();
+    const byNotionId = new Map<string, { id: string; status: string }>();
     for (const r of existing ?? []) {
-      if (r.notion_id) byNotionId.set(r.notion_id as string, r.id as string);
+      if (r.notion_id) byNotionId.set(r.notion_id as string, { id: r.id as string, status: r.status as string });
     }
 
     // 4) Del op i nye (insert) og kendte (update).
@@ -477,22 +493,28 @@ export async function syncNotionTasks(): Promise<IntegrationActionState> {
     for (const t of mapped) {
       const completed_at = t.done || t.status === "done" ? new Date().toISOString() : null;
       const tags = t.workArea ? [t.workArea] : [];
-      const existingId = byNotionId.get(t.notionId);
+      const local = byNotionId.get(t.notionId);
 
-      if (existingId) {
+      if (local) {
         // Opdatér kun det Notion ejer – bevarer Lasses bucket/position/noter.
+        const update: Record<string, unknown> = {
+          title: t.title,
+          deadline: t.deadline,
+          category: t.category,
+          workspace: t.workspace,
+          priority: t.priority,
+        };
+        // Samme regel som syncNotionTasksCore: en Notion-side der stadig
+        // står som åben må ALDRIG genåbne en opgave, der allerede er
+        // markeret færdig her i appen (synkroniseringen er kun én vej).
+        if (local.status !== "done") {
+          update.status = t.status;
+          update.completed_at = completed_at;
+        }
         await auth.supabase
           .from("tasks")
-          .update({
-            title: t.title,
-            deadline: t.deadline,
-            status: t.status,
-            completed_at,
-            category: t.category,
-            workspace: t.workspace,
-            priority: t.priority,
-          })
-          .eq("id", existingId)
+          .update(update)
+          .eq("id", local.id)
           .eq("user_id", auth.userId);
         updated++;
       } else {
@@ -503,7 +525,7 @@ export async function syncNotionTasks(): Promise<IntegrationActionState> {
           source: "notion",
           notion_id: t.notionId,
           deadline: t.deadline,
-          reminder_at: t.deadline,
+          reminder_at: null,
           status: t.status,
           completed_at,
           category: t.category,
