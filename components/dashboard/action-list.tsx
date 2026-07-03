@@ -12,6 +12,7 @@ import { useOpenDetail } from "@/components/tasks/detail-context";
 import { setTaskStatus, quickCreateTask } from "@/features/tasks/actions";
 import { syncEverythingNow } from "@/features/integrations/actions";
 import { summarizeTradeIn } from "@/features/tasks/trade-in";
+import { deriveTopic, topicColor } from "@/features/tasks/topic";
 import { priorities } from "@/features/tasks/constants";
 import type { Workspace, Priority } from "@/features/tasks/constants";
 import type { ActionItem, ActionListGroups } from "@/features/dashboard/action-list";
@@ -159,6 +160,7 @@ function ActionRow({
 
   const clickable = Boolean(item.task);
   const tradeIn = summarizeTradeIn(item.task?.trade_in);
+  const topic = deriveTopic(item.title);
 
   async function handleCreateTask() {
     if (creating) return;
@@ -210,6 +212,21 @@ function ActionRow({
           >
             {priorities[item.priority]?.label ?? priorities.can_wait.label}
           </span>
+          {/* Kort auto-udledt emne ("Import", "Bud", "Karla" …) – egen farve-
+              palet (blå/lilla/pink/teal/indigo), bevidst uden prioriteternes
+              rød/orange/grøn, så de to badges aldrig forveksles. */}
+          {topic && (
+            <span
+              className="mt-0.5 inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              style={{
+                color: topicColor(topic),
+                borderColor: `color-mix(in oklab, ${topicColor(topic)} 40%, transparent)`,
+                backgroundColor: `color-mix(in oklab, ${topicColor(topic)} 10%, transparent)`,
+              }}
+            >
+              {topic}
+            </span>
+          )}
           <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
         </div>
         {item.context && (

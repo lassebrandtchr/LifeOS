@@ -4,6 +4,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AutoSync } from "@/components/layout/auto-sync";
 import { ReminderWatcher } from "@/components/layout/reminder-watcher";
+import { WorkModeRefresher } from "@/components/layout/work-mode-refresher";
 import { getNotifications } from "@/features/dashboard/notifications";
 import type { SessionUser } from "@/lib/auth/dal";
 
@@ -25,6 +26,7 @@ export async function AppShell({
     <div className="flex min-h-dvh">
       <AutoSync />
       <ReminderWatcher />
+      <WorkModeRefresher />
       <AmbientBackground />
       <Sidebar user={user} />
       <div className="flex min-w-0 flex-1 flex-col">

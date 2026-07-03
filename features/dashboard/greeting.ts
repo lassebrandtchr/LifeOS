@@ -1,4 +1,4 @@
-import { isWorkHours as computeIsWorkHours } from "@/features/tasks/section-order";
+import { isWorkHours as computeIsWorkHours, copenhagenClock } from "@/features/tasks/section-order";
 
 export type GreetingResult = {
   text: string;
@@ -17,7 +17,8 @@ export type GreetingResult = {
  *  00.00–04.59  God nat (uden for det oplyste spænd – ingen er vågne endnu)
  */
 export function getGreeting(date: Date = new Date()): GreetingResult {
-  const hour = date.getHours() + date.getMinutes() / 60;
+  // Dansk klokkeslæt – IKKE serverens (Vercel kører i UTC, se section-order.ts).
+  const { hour } = copenhagenClock(date);
   // Arbejdstid defineres ét sted (features/tasks/section-order.ts), så hele
   // appen er enig om hvornår det er arbejde vs. privat.
   const isWorkHours = computeIsWorkHours(date);
