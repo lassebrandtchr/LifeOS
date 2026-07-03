@@ -346,6 +346,9 @@
 .rte-content strong {
   font-weight: 700;
 }
+.rte-content em {
+  font-style: italic;
+}
 .rte-content ul,
 .rte-content ol {
   margin: 0 0 0.5em 1.25em;

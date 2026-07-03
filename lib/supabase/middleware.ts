@@ -66,6 +66,16 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // API-ruter må ALDRIG omdirigeres til login-HTML – de håndterer selv
+  // deres adgangskontrol (cron-ruten kræver CRON_SECRET, OAuth-ruterne
+  // tjekker selv sessionen). Uden denne undtagelse blev /api/cron/sync
+  // omdirigeret 307 → /login for cron-kald uden cookie, og den automatiske
+  // baggrunds-synk kørte derfor ALDRIG i produktion (GitHub Actions' curl
+  // fejler ikke på en 3xx, så det så ud som succes i månedsvis).
+  if (pathname.startsWith("/api")) {
+    return supabaseResponse;
+  }
+
   // Ikke logget ind + beskyttet rute → til login.
   if (!user && !isPublicPath(pathname)) {
     const url = request.nextUrl.clone();

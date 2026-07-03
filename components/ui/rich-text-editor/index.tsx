@@ -5,16 +5,32 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold as BoldIcon, Heading2 } from "lucide-react";
+import { Bold as BoldIcon, Italic as ItalicIcon, Heading2, Palette } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { FontSize } from "@/components/ui/rich-text-editor/font-size-mark";
+import { TextColor } from "@/components/ui/rich-text-editor/text-color-mark";
 import { isHtmlEmpty } from "@/lib/text/strip-html";
 
+// Skriftstørrelser 10–20 px (Lasses ønskede interval). "Auto" = editorens
+// normale størrelse (fjerner marken). Ældre gemte noter med de tidligere
+// em-baserede størrelser ("1.125em") vises stadig korrekt – font-size-marken
+// gengiver bare den gemte værdi.
 const SIZES: { label: string; value: string | null }[] = [
-  { label: "Normal", value: null },
-  { label: "Stor", value: "1.125em" },
-  { label: "Ekstra stor", value: "1.375em" },
+  { label: "Auto", value: null },
+  ...Array.from({ length: 11 }, (_, i) => ({ label: String(10 + i), value: `${10 + i}px` })),
+];
+
+// Tekstfarver – klare, tydelige farver der virker i både lys og mørk mode.
+const TEXT_COLORS: { label: string; value: string | null }[] = [
+  { label: "Standard", value: null },
+  { label: "Rød", value: "#ef4444" },
+  { label: "Orange", value: "#f97316" },
+  { label: "Gul", value: "#eab308" },
+  { label: "Grøn", value: "#22c55e" },
+  { label: "Blå", value: "#3b82f6" },
+  { label: "Lilla", value: "#a855f7" },
+  { label: "Pink", value: "#ec4899" },
 ];
 
 /**
@@ -23,10 +39,9 @@ const SIZES: { label: string; value: string | null }[] = [
  * i den samme text-kolonne, der tidligere holdt ren tekst – ældre ren-tekst
  * indhold vises stadig korrekt (Tiptap fortolker det bare som ét afsnit).
  *
- * Værktøjslinje: "Overskrift" (større + fed, hele linjen) og "Fed" (kun det
- * markerede) er to uafhængige knapper, plus en størrelse-vælger til at
- * ændre skriftstørrelsen på et vilkårligt markeret tekst-udpluk – præcis de
- * tre ting Lasse har bedt om.
+ * Værktøjslinje: Overskrift, Fed, Kursiv, skriftstørrelse (10–20) og
+ * tekstfarve – samme kontroller i både den faste linje øverst og i pop
+ * op-menuen, der følger med når man markerer tekst.
  */
 export function RichTextEditor({
   value,
@@ -55,6 +70,7 @@ export function RichTextEditor({
         heading: { levels: [2] },
       }),
       FontSize,
+      TextColor,
       Placeholder.configure({ placeholder: placeholder ?? "Skriv her …" }),
     ],
     content: value,
@@ -125,9 +141,11 @@ export function RichTextEditor({
   );
 }
 
-/** Overskrift/Fed/Størrelse – genbruges i både den faste værktøjslinje og pop op-menuen ved markering. */
+/** Overskrift/Fed/Kursiv/Størrelse/Farve – genbruges i både den faste værktøjslinje og pop op-menuen ved markering. */
 function FormatControls({ editor }: { editor: Editor }) {
   const currentSize = (editor.getAttributes("fontSize").size as string | undefined) ?? null;
+  const currentColor = (editor.getAttributes("textColor").color as string | undefined) ?? null;
+  const [showColors, setShowColors] = React.useState(false);
 
   return (
     <>
@@ -145,6 +163,13 @@ function FormatControls({ editor }: { editor: Editor }) {
       >
         <BoldIcon className="size-3.5" />
       </ToolbarButton>
+      <ToolbarButton
+        active={editor.isActive("italic")}
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        label="Kursiv"
+      >
+        <ItalicIcon className="size-3.5" />
+      </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border/60" />
       <select
         value={currentSize ?? ""}
@@ -155,6 +180,7 @@ function FormatControls({ editor }: { editor: Editor }) {
         }}
         className="h-6 rounded-md border border-border/50 bg-secondary/40 px-1.5 text-[11px] text-foreground outline-none"
         aria-label="Tekststørrelse"
+        title="Tekststørrelse"
       >
         {SIZES.map((s) => (
           <option key={s.label} value={s.value ?? ""}>
@@ -162,6 +188,53 @@ function FormatControls({ editor }: { editor: Editor }) {
           </option>
         ))}
       </select>
+
+      {/* Tekstfarve: palet-knap, der folder en swatch-række ud lige ved siden
+          af (ingen portal/popover – virker derfor også inde i pop op-menuen
+          ved markering). Prikken under ikonet viser den aktive farve. */}
+      <ToolbarButton
+        active={showColors || Boolean(currentColor)}
+        onClick={() => setShowColors((v) => !v)}
+        label="Tekstfarve"
+      >
+        <span className="flex flex-col items-center">
+          <Palette className="size-3.5" />
+          <span
+            className="mt-px h-[3px] w-3.5 rounded-full"
+            style={{ backgroundColor: currentColor ?? "var(--muted-foreground)" }}
+          />
+        </span>
+      </ToolbarButton>
+      {showColors && (
+        <span className="flex items-center gap-1 rounded-md border border-border/50 bg-secondary/40 px-1.5 py-1">
+          {TEXT_COLORS.map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              aria-label={c.label}
+              title={c.label}
+              onClick={() => {
+                if (c.value) editor.chain().focus().setTextColor(c.value).run();
+                else editor.chain().focus().unsetTextColor().run();
+                setShowColors(false);
+              }}
+              className={cn(
+                "size-4 shrink-0 rounded-full transition-transform hover:scale-125",
+                (c.value ?? null) === currentColor && "ring-2 ring-ring ring-offset-1 ring-offset-background",
+              )}
+              style={
+                c.value
+                  ? { backgroundColor: c.value }
+                  : {
+                      backgroundColor: "var(--foreground)",
+                      backgroundImage:
+                        "linear-gradient(135deg, transparent 45%, var(--destructive) 45%, var(--destructive) 55%, transparent 55%)",
+                    }
+              }
+            />
+          ))}
+        </span>
+      )}
     </>
   );
 }
