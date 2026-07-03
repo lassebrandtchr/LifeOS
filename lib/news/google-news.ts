@@ -31,8 +31,12 @@ function extractTag(block: string, tag: string): string | null {
   return m[1].replace(/^<!\[CDATA\[/, "").replace(/\]\]>$/, "").trim();
 }
 
-/** Simpel, målrettet RSS-parser til Google News' kendte, stabile format. */
-function parseGoogleNewsRss(xml: string, limit: number): NewsItem[] {
+/**
+ * Simpel, målrettet RSS-parser – virker for både Google News' format (med
+ * <source>-tag) og almindelige WordPress-feeds fra de danske sites (uden;
+ * dér bruges defaultSource i stedet).
+ */
+function parseRssItems(xml: string, limit: number, defaultSource: string | null = null): NewsItem[] {
   const items: NewsItem[] = [];
   const blocks = xml.split("<item>").slice(1);
 
@@ -45,10 +49,10 @@ function parseGoogleNewsRss(xml: string, limit: number): NewsItem[] {
     if (!rawTitle || !link) continue;
 
     const sourceMatch = block.match(/<source[^>]*>([\s\S]*?)<\/source>/);
-    const source = sourceMatch ? decodeEntities(sourceMatch[1]) : null;
+    const source = sourceMatch ? decodeEntities(sourceMatch[1]) : defaultSource;
 
     let title = decodeEntities(rawTitle);
-    // Google News' titler ender ofte med " - Kildenavn" – kildens vises
+    // Google News' titler ender ofte med " - Kildenavn" – kilden vises
     // allerede separat, så det fjernes for en renere overskrift.
     if (source && title.endsWith(` - ${source}`)) {
       title = title.slice(0, title.length - source.length - 3).trim();
@@ -117,10 +121,81 @@ async function fetchGoogleNews(
     // trækker nogle fra – Google's feed kan sagtens indeholde 100 hits, og
     // for lav grænse her risikerer at skære alle de friske/danske fra, hvis
     // de ligger langt nede i feedet.
-    return parseGoogleNewsRss(xml, limit * 10).filter(withinMaxAge).slice(0, limit);
+    return parseRssItems(xml, limit * 10).filter(withinMaxAge).slice(0, limit);
   } catch {
     return [];
   }
+}
+
+// ─────────────────── Direkte danske RSS-feeds (primær kilde) ───────────────────
+// Googles "site:"-søgning viste sig at give et lille, halvgammelt udpluk af
+// hvert site (testet: 0 friske hits på tværs af 9 sites, selvom siterne
+// udgav artikler SAMME dag). Sitenes egne feeds giver derimod altid deres
+// nyeste artikler – så de er nu den primære kilde, og Google News bruges
+// kun som opfyldning. FDM/Bilmagasinet/Inputmag har ingen offentlige feeds
+// (testet 404/403/HTML) og dækkes derfor kun via Google-laget.
+
+type DirectFeed = { url: string; source: string };
+
+const CAR_FEEDS: DirectFeed[] = [
+  { url: "https://boosted.dk/feed", source: "Boosted.dk" },
+  { url: "https://www.hvilkenbil.dk/feed", source: "Hvilkenbil.dk" },
+];
+
+const TECH_FEEDS: DirectFeed[] = [
+  { url: "https://www.mobilsiden.dk/feed", source: "Mobilsiden.dk" },
+  { url: "https://meremobil.dk/feed", source: "MereMobil.dk" },
+  { url: "https://www.recordere.dk/feed/", source: "Recordere.dk" },
+];
+
+// Bil-relevans-filter til at fiske bilnyt ud af tech-feeds (MereMobil m.fl.
+// skriver også om elbiler) – og omvendt frasortere rene gadget-artikler.
+const CAR_RELEVANT =
+  /\b(bil|biler|bilen|elbil\w*|ladestander\w*|opladning|Tesla|Volkswagen|VW|Toyota|BMW|Audi|Mercedes|Volvo|Kia|Hyundai|Renault|Peugeot|Skoda|Ford|Nissan|Honda|Dacia|Polestar)\b/i;
+
+async function fetchSiteFeed(feed: DirectFeed, force: boolean): Promise<NewsItem[]> {
+  try {
+    const res = await fetch(feed.url, {
+      ...(force ? { cache: "no-store" as const } : { next: { revalidate: REVALIDATE_SECONDS } }),
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (LifeOS nyhedslæser)" },
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    return parseRssItems(xml, 40, feed.source).filter(withinMaxAge);
+  } catch {
+    return [];
+  }
+}
+
+/** Alle friske artikler fra en liste af direkte feeds, nyeste først. */
+async function fetchDirectFeeds(feeds: DirectFeed[], force: boolean): Promise<NewsItem[]> {
+  const lists = await Promise.all(feeds.map((f) => fetchSiteFeed(f, force)));
+  return lists
+    .flat()
+    .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""));
+}
+
+/**
+ * Let variation: højst `maxPerSource` artikler pr. kilde i toppen af listen,
+ * så ét flittigt site (fx Boosted med 40 artikler) ikke fylder hele kassen –
+ * de overskydende ryger bagest i stedet for helt ud.
+ */
+function diversifyBySource(items: NewsItem[], maxPerSource: number): NewsItem[] {
+  const counts = new Map<string, number>();
+  const top: NewsItem[] = [];
+  const overflow: NewsItem[] = [];
+  for (const item of items) {
+    const key = item.source ?? "?";
+    const n = counts.get(key) ?? 0;
+    if (n < maxPerSource) {
+      counts.set(key, n + 1);
+      top.push(item);
+    } else {
+      overflow.push(item);
+    }
+  }
+  return [...top, ...overflow];
 }
 
 const EN_LOCALE = { hl: "en-US", gl: "US", ceid: "US:en" };
@@ -192,11 +267,17 @@ async function fetchLayeredNews(
   englishTopicQuery: string,
   limit: number,
   { force = false, excludeUrls = [] }: NewsFetchOptions = {},
+  directItems: NewsItem[] = [],
 ): Promise<NewsItem[]> {
   const exclude = new Set(excludeUrls);
   const isRefresh = exclude.size > 0;
   const poolLimit = isRefresh ? limit * 8 : limit;
   const freshCount = (items: NewsItem[]) => items.filter((i) => !exclude.has(i.url)).length;
+
+  // Lag 0: sitenes egne feeds (altid friskest, altid dansk) – nyeste først.
+  const seen = new Set(directItems.map((d) => d.url));
+  const combined = [...directItems];
+  if (!isRefresh && freshCount(combined) >= limit) return combined.slice(0, limit);
 
   const danishRaw = await fetchGoogleNews(
     `${DANISH_SITE_FILTER} (${danishTopicQuery}) ${MIDEAST_EXCLUDE}`,
@@ -204,9 +285,12 @@ async function fetchLayeredNews(
     DA_LOCALE,
     force,
   );
-  const danish = danishRaw.filter(looksDanish);
-  const seen = new Set(danish.map((d) => d.url));
-  const combined = [...danish];
+  for (const item of danishRaw.filter(looksDanish)) {
+    if (!seen.has(item.url)) {
+      combined.push(item);
+      seen.add(item.url);
+    }
+  }
   if (!isRefresh && freshCount(combined) >= limit) return combined.slice(0, limit);
 
   // "site:X OR (...)" i ét udtryk returnerede 0 hits i praksis – X hentes
@@ -255,20 +339,36 @@ const CAR_BRANDS =
   "Volkswagen OR Toyota OR BMW OR Audi OR Mercedes OR Tesla OR Volvo OR Kia OR Hyundai OR Renault OR Peugeot OR Skoda OR Ford OR Nissan OR Honda";
 
 export async function getCarIndustryNews(limit = 5, opts?: NewsFetchOptions): Promise<NewsItem[]> {
+  // Bil-sitenes fulde feeds + bil-relevante artikler fra tech-feeds
+  // (MereMobil/Mobilsiden skriver også om elbiler).
+  const [carDirect, techDirect] = await Promise.all([
+    fetchDirectFeeds(CAR_FEEDS, opts?.force ?? false),
+    fetchDirectFeeds(TECH_FEEDS, opts?.force ?? false),
+  ]);
+  const direct = diversifyBySource(
+    [...carDirect, ...techDirect.filter((i) => CAR_RELEVANT.test(i.title))]
+      .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")),
+    2,
+  );
+
   return fetchLayeredNews(
     `elbil OR elbiler OR bil OR biler OR bilmærker OR bilbranchen OR ladestander OR bilteknologi OR ${CAR_BRANDS}`,
     `(electric vehicles OR EV) OR (automotive industry) OR (car manufacturers) OR (new car models) OR (car technology) OR (self-driving cars) OR ${CAR_BRANDS}`,
     limit,
     opts,
+    direct,
   );
 }
 
 /** Privat tid: mest AI/tech/consumer electronics, med lidt bilnyt blandet ind. */
 export async function getTechAiNews(limit = 5, opts?: NewsFetchOptions): Promise<NewsItem[]> {
+  const direct = diversifyBySource(await fetchDirectFeeds(TECH_FEEDS, opts?.force ?? false), 2);
+
   return fetchLayeredNews(
     "kunstig intelligens OR AI OR teknologi OR elektronik OR gadgets OR elbil",
     '(artificial intelligence OR "AI") OR (consumer electronics) OR (tech industry) OR (electric vehicles)',
     limit,
     opts,
+    direct,
   );
 }
