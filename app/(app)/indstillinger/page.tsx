@@ -1,4 +1,4 @@
-import { ShieldCheck, LogOut, UserRound } from "lucide-react";
+import { ShieldCheck, LogOut, UserRound, Palette } from "lucide-react";
 
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { isGoogleConnected } from "@/features/integrations/google";
 import { isMicrosoftConnected } from "@/features/integrations/microsoft";
 import { isNotionConnected } from "@/features/integrations/notion";
 import { IntegrationCenter } from "@/components/settings/integration-center";
+import { ThemePicker } from "@/components/settings/theme-picker";
 import { GoogleFlash, MicrosoftFlash } from "@/components/settings/google-flash";
 
 export const metadata = { title: "Indstillinger" };
@@ -65,6 +66,19 @@ export default async function IndstillingerPage({
             </p>
           </div>
         </div>
+      </section>
+
+      {/* Farvetema */}
+      <section className="rounded-2xl border border-border/60 bg-card p-6 shadow-soft">
+        <div className="mb-1 flex items-center gap-2">
+          <Palette className="size-5 text-primary" />
+          <h2 className="text-lg font-semibold">Tema</h2>
+        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Vælg appens farvetema. Hver kasse viser temaet i både light (venstre)
+          og dark (højre) – lys/mørk skiftes stadig med knappen øverst.
+        </p>
+        <ThemePicker />
       </section>
 
       {/* Integrationer (Fase 9) */}

@@ -126,6 +126,253 @@
   --greeting-bg: linear-gradient(135deg, #12432b 0%, #1f8f52 55%, #4ae693 100%);
 }
 
+/* ------------------------------ FARVETEMAER ---------------------------- */
+/*
+  5 ekstra farvetemaer oven på standard-temaet "Skov" (grøn, defineret ovenfor).
+  Aktiveres via data-theme="..." på <html> (sat af ThemePicker under
+  Indstillinger + et lille inline-script i layout.tsx, så farven er rigtig
+  FØR første paint). Light/dark styres stadig af .dark-klassen (next-themes)
+  – hvert tema har derfor BÅDE en :root[data-theme]-blok (light) og en
+  .dark[data-theme]-blok (dark).
+
+  VIGTIGT ved fremtidige designændringer: brug ALTID tokens (var(--...)),
+  aldrig hardcodede farver – så følger nye komponenter automatisk med i alle
+  temaer. Hver dark-blok skal sætte ALLE tokens som light-blokken sætter
+  (specificiteten er ens, så rækkefølgen her i filen afgør vinderen).
+  Status-farverne (--success/--warning/--destructive) og --accent-work er
+  semantiske og skifter bevidst IKKE med temaet.
+*/
+
+/* ------ NAVY – dyb navy-blå (Lasses ønske: lyseblå light, navy dark) ---- */
+:root[data-theme="navy"] {
+  --background: #ecf2fb;
+  --foreground: #0c1a33;
+  --primary: #1e56c8;
+  --primary-foreground: #ffffff;
+  --secondary: #dbe7f8;
+  --secondary-foreground: #0c1a33;
+  --muted: #e5eef9;
+  --muted-foreground: #5b6b84;
+  --accent: #c6dcf5;
+  --accent-foreground: #0c1a33;
+  --border: #cfdff2;
+  --input: #cfdff2;
+  --ring: #1e56c8;
+  --brand: #1e56c8;
+  --accent-private: #1e56c8;
+  --glow: rgba(30, 86, 200, 0.32);
+  --glass-tint: rgba(30, 86, 200, 0.05);
+  --sidebar-grad: linear-gradient(180deg, #dbe7f8 0%, #c2d8f2 55%, #b3cdee 100%);
+  --sidebar-border: #a9c4e6;
+  --greeting-bg: linear-gradient(135deg, #081c40 0%, #123068 60%, #1c4691 100%);
+}
+.dark[data-theme="navy"] {
+  --background: #0d1422;
+  --foreground: #e7ecf4;
+  --primary: #6aa5ff;
+  --primary-foreground: #071022;
+  --secondary: #1d2940;
+  --secondary-foreground: #e7ecf4;
+  --muted: #192338;
+  --muted-foreground: #94a5c2;
+  --accent: #24334e;
+  --accent-foreground: #e7ecf4;
+  --border: #293a56;
+  --input: #293a56;
+  --ring: #6aa5ff;
+  --brand: #6aa5ff;
+  --accent-private: #6aa5ff;
+  --glow: rgba(106, 165, 255, 0.5);
+  --glass-tint: rgba(106, 165, 255, 0.06);
+  --sidebar-grad: linear-gradient(168deg, #0a1830 0%, #050f22 55%, #081428 100%);
+  --sidebar-border: #12294a;
+  --greeting-bg: linear-gradient(135deg, #10305e 0%, #1e56c8 55%, #6aa5ff 100%);
+}
+
+/* --------------------- PETROL – rolig blågrøn/teal ---------------------- */
+:root[data-theme="petrol"] {
+  --background: #eaf5f4;
+  --foreground: #0a201f;
+  --primary: #0d9488;
+  --primary-foreground: #ffffff;
+  --secondary: #d5ecea;
+  --secondary-foreground: #0a201f;
+  --muted: #e2f1ef;
+  --muted-foreground: #56716e;
+  --accent: #bfe5e1;
+  --accent-foreground: #0a201f;
+  --border: #c9e4e1;
+  --input: #c9e4e1;
+  --ring: #0d9488;
+  --brand: #0d9488;
+  --accent-private: #0d9488;
+  --glow: rgba(13, 148, 136, 0.32);
+  --glass-tint: rgba(13, 148, 136, 0.05);
+  --sidebar-grad: linear-gradient(180deg, #d5ecea 0%, #bce0dc 55%, #abd6d1 100%);
+  --sidebar-border: #9fccc7;
+  --greeting-bg: linear-gradient(135deg, #083832 0%, #0f6b60 60%, #14897b 100%);
+}
+.dark[data-theme="petrol"] {
+  --background: #0e181b;
+  --foreground: #e6eff0;
+  --primary: #2dd4bf;
+  --primary-foreground: #04201c;
+  --secondary: #1c2c2f;
+  --secondary-foreground: #e6eff0;
+  --muted: #182629;
+  --muted-foreground: #91a8a8;
+  --accent: #223438;
+  --accent-foreground: #e6eff0;
+  --border: #2a3d40;
+  --input: #2a3d40;
+  --ring: #2dd4bf;
+  --brand: #2dd4bf;
+  --accent-private: #2dd4bf;
+  --glow: rgba(45, 212, 191, 0.5);
+  --glass-tint: rgba(45, 212, 191, 0.06);
+  --sidebar-grad: linear-gradient(168deg, #06201f 0%, #031614 55%, #05201c 100%);
+  --sidebar-border: #123a35;
+  --greeting-bg: linear-gradient(135deg, #0b4038 0%, #128a76 55%, #2dd4bf 100%);
+}
+
+/* ---------------------- AMETYST – elegant dyb lilla --------------------- */
+:root[data-theme="ametyst"] {
+  --background: #f2effb;
+  --foreground: #1a1230;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --secondary: #e6def7;
+  --secondary-foreground: #1a1230;
+  --muted: #ece7f8;
+  --muted-foreground: #6b6285;
+  --accent: #d8cbf3;
+  --accent-foreground: #1a1230;
+  --border: #dcd2f0;
+  --input: #dcd2f0;
+  --ring: #7c3aed;
+  --brand: #7c3aed;
+  --accent-private: #7c3aed;
+  --glow: rgba(124, 58, 237, 0.3);
+  --glass-tint: rgba(124, 58, 237, 0.05);
+  --sidebar-grad: linear-gradient(180deg, #e6def7 0%, #d5c8f0 55%, #c9baea 100%);
+  --sidebar-border: #bcaade;
+  --greeting-bg: linear-gradient(135deg, #2a1360 0%, #4c1d95 60%, #6d3bd8 100%);
+}
+.dark[data-theme="ametyst"] {
+  --background: #14121f;
+  --foreground: #ebe7f4;
+  --primary: #a78bfa;
+  --primary-foreground: #170e2e;
+  --secondary: #262038;
+  --secondary-foreground: #ebe7f4;
+  --muted: #201b31;
+  --muted-foreground: #a29ab8;
+  --accent: #2e2745;
+  --accent-foreground: #ebe7f4;
+  --border: #382f52;
+  --input: #382f52;
+  --ring: #a78bfa;
+  --brand: #a78bfa;
+  --accent-private: #a78bfa;
+  --glow: rgba(167, 139, 250, 0.5);
+  --glass-tint: rgba(167, 139, 250, 0.06);
+  --sidebar-grad: linear-gradient(168deg, #1c1136 0%, #100a24 55%, #170e2e 100%);
+  --sidebar-border: #2d1d55;
+  --greeting-bg: linear-gradient(135deg, #31176b 0%, #6d3bd8 55%, #a78bfa 100%);
+}
+
+/* --------------------- BORDEAUX – dyb, varm vinrød ---------------------- */
+:root[data-theme="bordeaux"] {
+  --background: #faeff1;
+  --foreground: #2b0a14;
+  --primary: #a11d3f;
+  --primary-foreground: #ffffff;
+  --secondary: #f4dde2;
+  --secondary-foreground: #2b0a14;
+  --muted: #f6e7ea;
+  --muted-foreground: #83606a;
+  --accent: #eccbd3;
+  --accent-foreground: #2b0a14;
+  --border: #ecd2d8;
+  --input: #ecd2d8;
+  --ring: #a11d3f;
+  --brand: #a11d3f;
+  --accent-private: #a11d3f;
+  --glow: rgba(161, 29, 63, 0.28);
+  --glass-tint: rgba(161, 29, 63, 0.05);
+  --sidebar-grad: linear-gradient(180deg, #f3dfe1 0%, #e9cacc 55%, #ddb4b8 100%);
+  --sidebar-border: #cda3a8;
+  --greeting-bg: linear-gradient(135deg, #4a0d20 0%, #7c1533 60%, #a11d3f 100%);
+}
+.dark[data-theme="bordeaux"] {
+  --background: #191014;
+  --foreground: #f2e8eb;
+  --primary: #e0637e;
+  --primary-foreground: #2b0a14;
+  --secondary: #2e1f27;
+  --secondary-foreground: #f2e8eb;
+  --muted: #281b22;
+  --muted-foreground: #b39aa3;
+  --accent: #3a2530;
+  --accent-foreground: #f2e8eb;
+  --border: #432b35;
+  --input: #432b35;
+  --ring: #e0637e;
+  --brand: #e0637e;
+  --accent-private: #e0637e;
+  --glow: rgba(224, 99, 126, 0.45);
+  --glass-tint: rgba(224, 99, 126, 0.06);
+  --sidebar-grad: linear-gradient(168deg, #33101c 0%, #200a12 55%, #2b0e18 100%);
+  --sidebar-border: #55192b;
+  --greeting-bg: linear-gradient(135deg, #571126 0%, #a11d3f 55%, #e0637e 100%);
+}
+
+/* ------------------ GRAFIT – eksklusiv stål/mørkegrå -------------------- */
+:root[data-theme="grafit"] {
+  --background: #f1f3f5;
+  --foreground: #16191d;
+  --primary: #334155;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e6ea;
+  --secondary-foreground: #16191d;
+  --muted: #e9edf0;
+  --muted-foreground: #66707c;
+  --accent: #d4dae1;
+  --accent-foreground: #16191d;
+  --border: #d4dae0;
+  --input: #d4dae0;
+  --ring: #334155;
+  --brand: #334155;
+  --accent-private: #334155;
+  --glow: rgba(51, 65, 85, 0.28);
+  --glass-tint: rgba(51, 65, 85, 0.05);
+  --sidebar-grad: linear-gradient(180deg, #e2e6ea 0%, #ccd4dc 55%, #bfc9d2 100%);
+  --sidebar-border: #aeb9c4;
+  --greeting-bg: linear-gradient(135deg, #14181f 0%, #2b3646 60%, #435268 100%);
+}
+.dark[data-theme="grafit"] {
+  --background: #101318;
+  --foreground: #e9edf2;
+  --primary: #9fb4cc;
+  --primary-foreground: #101318;
+  --secondary: #212832;
+  --secondary-foreground: #e9edf2;
+  --muted: #1c222b;
+  --muted-foreground: #98a4b3;
+  --accent: #29323e;
+  --accent-foreground: #e9edf2;
+  --border: #303b48;
+  --input: #303b48;
+  --ring: #9fb4cc;
+  --brand: #9fb4cc;
+  --accent-private: #9fb4cc;
+  --glow: rgba(159, 180, 204, 0.4);
+  --glass-tint: rgba(159, 180, 204, 0.06);
+  --sidebar-grad: linear-gradient(168deg, #171c23 0%, #0d1116 55%, #13181f 100%);
+  --sidebar-border: #2b3541;
+  --greeting-bg: linear-gradient(135deg, #232c38 0%, #46566b 55%, #9fb4cc 100%);
+}
+
 /* --------------- Kobl tokens til Tailwind-utility-klasser -------------- */
 @theme inline {
   --color-background: var(--background);
@@ -183,17 +430,18 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100dvh;
-    /* Subtil, blød baggrundsgradient med frisk grønt skær */
+    /* Subtil, blød baggrundsgradient med skær i temaets brandfarve
+       (color-mix af --primary, så alle farvetemaer automatisk følger med) */
     background-image:
-      radial-gradient(1200px 600px at 100% -10%, rgba(22, 163, 74, 0.12), transparent 60%),
-      radial-gradient(900px 500px at -10% 110%, rgba(34, 197, 94, 0.08), transparent 55%);
+      radial-gradient(1200px 600px at 100% -10%, color-mix(in oklab, var(--primary) 12%, transparent), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 55%);
     background-attachment: fixed;
   }
 
-  /* Køligt slate-skær i mørk mode med et diskret grønt brand-strejf */
+  /* Køligt slate-skær i mørk mode med et diskret strejf af temaets brandfarve */
   .dark body {
     background-image:
-      radial-gradient(900px 500px at 80% -15%, rgba(74, 230, 147, 0.1), transparent 60%),
+      radial-gradient(900px 500px at 80% -15%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 60%),
       radial-gradient(800px 500px at -10% 110%, rgba(94, 124, 165, 0.12), transparent 55%);
   }
 }

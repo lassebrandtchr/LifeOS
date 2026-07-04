@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/layout/theme-provider";
+import { ColorThemeSync } from "@/components/layout/color-theme-sync";
 import { Toaster } from "@/components/ui/sonner";
 import { siteConfig } from "@/config/site";
 
@@ -58,12 +59,21 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
       <body>
+        {/* Farvetema (data-theme) genskabes fra localStorage FØR første paint,
+            så siden aldrig blinker grønt før fx Navy-temaet slår igennem.
+            Nøglen skal matche THEME_STORAGE_KEY i features/theme/themes.ts. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("lifeos-color-theme");if(t&&t!=="skov")document.documentElement.setAttribute("data-theme",t)}catch(e){}`,
+          }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
           enableSystem={false}
           disableTransitionOnChange
         >
+          <ColorThemeSync />
           {children}
           <Toaster />
         </ThemeProvider>
