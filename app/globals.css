@@ -373,6 +373,27 @@
   --greeting-bg: linear-gradient(135deg, #232c38 0%, #46566b 55%, #9fb4cc 100%);
 }
 
+/* Logo følger farvetemaet: brand-ikonet er grønt (PNG), så vi hue-roterer
+   det grønne over i temaets farvetone (samme filter virker på både light-
+   og dark-logoet, da begge er grøn-baserede). Grafit afmættes i stedet.
+   Vinklerne er visuelt finjusteret – CSS hue-rotate er ikke perceptuelt
+   præcis, så de matcher ikke matematisk temaets hue. */
+[data-theme="navy"] .logo-adapt {
+  filter: hue-rotate(75deg);
+}
+[data-theme="petrol"] .logo-adapt {
+  filter: hue-rotate(30deg);
+}
+[data-theme="ametyst"] .logo-adapt {
+  filter: hue-rotate(117deg);
+}
+[data-theme="bordeaux"] .logo-adapt {
+  filter: hue-rotate(218deg) saturate(0.9) brightness(0.94);
+}
+[data-theme="grafit"] .logo-adapt {
+  filter: saturate(0.15);
+}
+
 /* --------------- Kobl tokens til Tailwind-utility-klasser -------------- */
 @theme inline {
   --color-background: var(--background);
