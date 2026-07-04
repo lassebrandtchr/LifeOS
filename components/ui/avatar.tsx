@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
@@ -43,14 +44,30 @@ export function Avatar({
       )}
     >
       {showImage ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          ref={imgRef}
-          src={src}
-          alt={alt}
-          className="size-full object-cover"
-          onError={() => setFailed(true)}
-        />
+        src.startsWith("/") ? (
+          // Lokalt billede (fx /lasse.jpg på ~500 KB): next/image skalerer og
+          // komprimerer til få KB WebP i den viste størrelse (maks. 56px +
+          // retina) i stedet for at sende originalen med på hver side.
+          <Image
+            src={src}
+            alt={alt}
+            width={112}
+            height={112}
+            className="size-full object-cover"
+            onError={() => setFailed(true)}
+          />
+        ) : (
+          // Ekstern URL (fx Google-profilbillede): rå <img>, da next/image
+          // kræver whitelisting af hvert eksternt domæne (remotePatterns).
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            ref={imgRef}
+            src={src}
+            alt={alt}
+            className="size-full object-cover"
+            onError={() => setFailed(true)}
+          />
+        )
       ) : (
         <span aria-hidden>{fallback}</span>
       )}

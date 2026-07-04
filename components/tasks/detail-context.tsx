@@ -22,7 +22,7 @@ import { updateTask, updateProjectNotes } from "@/features/tasks/actions";
 import { deriveBucketFromDeadline } from "@/features/tasks/bucket";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
 import type { Task, Project } from "@/features/tasks/types";
 
 export type DetailItem =

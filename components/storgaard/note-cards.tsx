@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { saveNoteCard } from "@/features/notes/actions";
 import { NoteItemAttachments } from "@/components/storgaard/note-item-attachments";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
+import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
 import { stripHtmlInline, isHtmlEmpty } from "@/lib/text/strip-html";
 import type { NoteCardTheme } from "@/config/note-cards";
 
