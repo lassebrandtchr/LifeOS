@@ -88,18 +88,32 @@ export async function getMailMessages(limit = 50): Promise<MailMessage[]> {
       .order("received_at", { ascending: false, nullsFirst: false })
       .limit(limit);
     if (error || !data) return [];
-    return data.map((r) => ({
-      id: r.id as string,
-      externalId: (r.external_id as string | null) ?? null,
-      subject: (r.subject as string | null) ?? "(uden emne)",
-      snippet: (r.snippet as string | null) ?? "",
-      from: (r.from_addr as string | null) ?? "",
-      isRead: Boolean(r.is_read),
-      category: (r.category as string | null) ?? null,
-      source: (r.source as string | null) ?? null,
-      workspace: (r.workspace as string | null) ?? "shared",
-      receivedAt: (r.received_at as string | null) ?? null,
-    }));
+    return data.map((r) => {
+      const source = (r.source as string | null) ?? null;
+      // KILDEN afgør ALTID verdenen: Outlook = Storgaard (arbejde), Gmail =
+      // Privat. Historiske rækker kan have forkert workspace i databasen
+      // (fra før reglen blev håndhævet) – dette værn normaliserer ved
+      // læsning, så en Gmail-mail aldrig kan optræde under Storgaard Biler
+      // eller omvendt, uanset hvad der står i rækken.
+      const workspace =
+        source === "outlook"
+          ? "work"
+          : source === "gmail"
+            ? "private"
+            : ((r.workspace as string | null) ?? "shared");
+      return {
+        id: r.id as string,
+        externalId: (r.external_id as string | null) ?? null,
+        subject: (r.subject as string | null) ?? "(uden emne)",
+        snippet: (r.snippet as string | null) ?? "",
+        from: (r.from_addr as string | null) ?? "",
+        isRead: Boolean(r.is_read),
+        category: (r.category as string | null) ?? null,
+        source,
+        workspace,
+        receivedAt: (r.received_at as string | null) ?? null,
+      };
+    });
   } catch {
     return [];
   }
@@ -126,7 +140,14 @@ export async function getCalendarEvents(limit = 50): Promise<CalendarEventItem[]
       endsAt: (r.ends_at as string | null) ?? null,
       allDay: Boolean(r.all_day),
       source: (r.source as string | null) ?? null,
-      workspace: (r.workspace as string | null) ?? "shared",
+      // Samme kilde-værn som for mails: Outlook-kalender = arbejde,
+      // Google Kalender = privat – uanset hvad rækken historisk siger.
+      workspace:
+        (r.source as string | null) === "outlook"
+          ? "work"
+          : (r.source as string | null) === "google_calendar"
+            ? "private"
+            : ((r.workspace as string | null) ?? "shared"),
     }));
   } catch {
     return [];

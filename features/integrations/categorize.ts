@@ -13,9 +13,13 @@
 
 export type MailCategoryId =
   | "kunde"
+  | "bilvurdering"
   | "faktura"
   | "levering"
   | "kvittering"
+  | "sikkerhed"
+  | "kalender"
+  | "reklame"
   | "nyhedsbrev";
 
 export type BadgeVariant =
@@ -37,9 +41,13 @@ export type MailCategory = {
 
 export const MAIL_CATEGORIES: MailCategory[] = [
   { id: "kunde", label: "Kunde", gmailLabel: "Arbejde", gmailLabelId: "Label_30", variant: "default" },
+  { id: "bilvurdering", label: "Bilvurdering", gmailLabel: "", gmailLabelId: "", variant: "default" },
   { id: "faktura", label: "Faktura", gmailLabel: "Kvitteringer/fakturaer", gmailLabelId: "Label_6851695715860460098", variant: "warning" },
   { id: "levering", label: "Levering", gmailLabel: "Levering", gmailLabelId: "Label_37", variant: "secondary" },
   { id: "kvittering", label: "Kvittering", gmailLabel: "Ordrebekræftelser", gmailLabelId: "Label_2851542335419264115", variant: "secondary" },
+  { id: "sikkerhed", label: "Sikkerhed", gmailLabel: "", gmailLabelId: "", variant: "warning" },
+  { id: "kalender", label: "Kalender", gmailLabel: "", gmailLabelId: "", variant: "secondary" },
+  { id: "reklame", label: "Reklame", gmailLabel: "", gmailLabelId: "", variant: "outline" },
   { id: "nyhedsbrev", label: "Nyhedsbrev", gmailLabel: "Nyhedsbrev", gmailLabelId: "Label_29", variant: "outline" },
 ];
 
@@ -64,9 +72,15 @@ export function categorizeEmail(input: {
   const text = `${input.subject ?? ""} ${input.snippet ?? ""}`.toLowerCase();
 
   if (CLIENT_DOMAINS.some((d) => domain.includes(d))) return "kunde";
-  if (/regning|faktura|invoice|opkræv|betaling|mobilepay/.test(text))
+  if (/autoproff|t4g/.test(from) || /bilvurdering|vurdering klar|vurderingsrapport/.test(text))
+    return "bilvurdering";
+  if (/adgangskode|password|verificer|bekræft din konto|totrins|two-?factor|sikkerhedsadvarsel|mistænkelig login|sign-?in attempt|security alert/.test(text))
+    return "sikkerhed";
+  if (/invitation|inviteret dig|mødeindkaldelse|calendar invite|accepteret:|afslået:|tentativt:/.test(text))
+    return "kalender";
+  if (/regning|faktura|invoice|opkræv|betaling|mobilepay|rykker/.test(text))
     return "faktura";
-  if (/leveret|delivered|afsendt|shipment|forsendelse|tracking|yunexpress/.test(text))
+  if (/leveret|delivered|afsendt|shipment|forsendelse|tracking|yunexpress|postnord|\bgls\b|\bdao\b/.test(text))
     return "levering";
   if (/ordrebekræft|kvittering|receipt|booking|billet|ticket|din ordre|your order|ordre|order/.test(text))
     return "kvittering";
@@ -75,6 +89,8 @@ export function categorizeEmail(input: {
     /kajabimail|insideapple|apple\.com|facebookmail|meta/.test(from)
   )
     return "nyhedsbrev";
+  if (/\brabat\w*|\budsalg\b|\bspar \d|% ?rabat|black friday|sidste chance|tilbud kun|kampagnepris|\bsale\b|\bdeal\b/.test(text))
+    return "reklame";
 
   return null;
 }

@@ -10,6 +10,7 @@ import {
 import { toast } from "sonner";
 
 import { SectionCard } from "@/components/dashboard/section-card";
+import { IdeaSpark } from "@/components/markedsfoering/idea-spark";
 import { Badge } from "@/components/ui/badge";
 import { BarList } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
@@ -100,6 +101,9 @@ export function DashboardTab({
           })}
         </div>
       </SectionCard>
+
+      {/* Ugens content-idéer – sæsonbevidst inspiration med ét-kliks gem i Idébanken */}
+      <IdeaSpark />
 
       <motion.div variants={container} initial="hidden" animate="show" className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Dagens marketingfokus */}

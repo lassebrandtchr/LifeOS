@@ -35,6 +35,7 @@ import {
   sendEmailReply,
   type EmailDetail,
 } from "@/features/mail/actions";
+import { EmailBody } from "@/components/mail/email-body";
 
 type WeatherByLocation = { bramming: WeatherSnapshot | null; ribe: WeatherSnapshot | null };
 type ActionGroupsByWorkspace = { work: ActionListGroups; private: ActionListGroups };
@@ -328,7 +329,6 @@ function EmailDrawer({
   };
 
   const isWork = email.workspace === "work";
-  const body = detail?.body ?? detail?.snippet ?? email.snippet;
 
   return (
     <>
@@ -381,12 +381,12 @@ function EmailDrawer({
             </div>
           ) : loadError ? (
             <p className="text-sm text-destructive">Kunne ikke hente mail-indhold.</p>
-          ) : body ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-              {body}
-            </p>
+          ) : detail ? (
+            <EmailBody detail={detail} />
           ) : (
-            <p className="text-sm italic text-muted-foreground">Ingen brødtekst tilgængelig.</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+              {email.snippet}
+            </p>
           )}
         </div>
 

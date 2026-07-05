@@ -160,7 +160,12 @@ function ActionRow({
 
   const clickable = Boolean(item.task);
   const tradeIn = summarizeTradeIn(item.task?.trade_in);
-  const topic = deriveTopic(item.title);
+  // For mail-elementer får emne-udledningen også afsender + uddrag som
+  // signal, så badgen kan læse "hvad handler mailen om" – ikke kun emnefeltet.
+  const topic = deriveTopic(
+    item.title,
+    item.mailThread ? `${item.mailThread.from} ${item.mailThread.snippet}` : undefined,
+  );
 
   async function handleCreateTask() {
     if (creating) return;

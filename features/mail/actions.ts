@@ -6,6 +6,14 @@ import { getValidMicrosoftToken } from "@/features/integrations/microsoft";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type EmailAttachment = {
+  /** Udbyderens attachment-id (bruges af getEmailAttachment). */
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+};
+
 export type EmailDetail = {
   id: string;
   subject: string | null;
@@ -13,43 +21,234 @@ export type EmailDetail = {
   workspace: string;
   received_at: string | null;
   snippet: string | null;
+  /** Fuld HTML-brødtekst (saniteret) – vises i en sandboxet iframe. */
+  bodyHtml: string | null;
+  /** Ren tekst-fallback hvis mailen ikke har HTML. */
   body: string | null;
   external_id: string | null;
+  /** Rigtige vedhæftninger (inline-billeder er allerede indlejret i bodyHtml). */
+  attachments: EmailAttachment[];
 };
 
 export type ReplyResult = { ok: boolean; error?: string };
 
+// ─── Sanitering ───────────────────────────────────────────────────────────────
+// Fjerner aktivt indhold fra mail-HTML. Bælte OG seler: klienten viser
+// desuden HTML'en i en sandboxet iframe uden allow-scripts/allow-same-origin,
+// så scripts kan ikke køre selv hvis noget slap igennem her.
+
+function sanitizeEmailHtml(html: string): string {
+  return (
+    html
+      // Hele farlige blokke (indhold + tags). <style> beholdes bevidst –
+      // nyhedsbreve er ofte ulæselige uden deres CSS.
+      .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "")
+      .replace(/<(iframe|object|embed|applet|frame|frameset)\b[\s\S]*?(<\/\1\s*>|\/?>)/gi, "")
+      // Enkeltstående farlige tags
+      .replace(/<\/?(form|input|button|select|textarea|meta|base|link)\b[^>]*>/gi, "")
+      // Event handlers (onclick, onload, onerror …)
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      // javascript:-URL'er i href/src
+      .replace(/\s(href|src)\s*=\s*(["']?)\s*javascript:[^"'>\s]*\2/gi, "")
+  );
+}
+
+/** Groft tekst-uddrag af HTML (fallback + søgbarhed). */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style\b[\s\S]*?<\/style\s*>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+// Inline-billeder indlejres som data-URI'er. Loft, så en mail med kæmpe
+// billeder ikke giver et gigantisk svar til klienten.
+const MAX_INLINE_BYTES = 6 * 1024 * 1024;
+
 // ─── Gmail helpers ────────────────────────────────────────────────────────────
 
 type GmailPart = {
+  partId?: string;
   mimeType?: string;
-  body?: { data?: string };
+  filename?: string;
+  headers?: { name: string; value: string }[];
+  body?: { data?: string; attachmentId?: string; size?: number };
   parts?: GmailPart[];
 };
 
-function extractGmailText(part: GmailPart): string {
-  if (part.mimeType === "text/plain" && part.body?.data) {
-    return Buffer.from(part.body.data, "base64url").toString("utf-8");
+function walkGmailParts(part: GmailPart, visit: (p: GmailPart) => void) {
+  visit(part);
+  for (const p of part.parts ?? []) walkGmailParts(p, visit);
+}
+
+function gmailHeader(part: GmailPart, name: string): string | null {
+  return (
+    part.headers?.find((h) => h.name.toLowerCase() === name.toLowerCase())
+      ?.value ?? null
+  );
+}
+
+async function fetchGmailAttachment(
+  token: string,
+  messageId: string,
+  attachmentId: string,
+): Promise<Buffer | null> {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json.data ? Buffer.from(json.data as string, "base64url") : null;
+}
+
+async function loadGmailDetail(
+  token: string,
+  externalId: string,
+  base: EmailDetail,
+): Promise<void> {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${externalId}?format=full`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) return;
+  const msg = await res.json();
+  const payload = (msg.payload ?? {}) as GmailPart;
+
+  let html: string | null = null;
+  let text: string | null = null;
+  const inline: { contentId: string; attachmentId: string; mime: string }[] = [];
+
+  walkGmailParts(payload, (p) => {
+    const mime = p.mimeType ?? "";
+    if (!html && mime === "text/html" && p.body?.data) {
+      html = Buffer.from(p.body.data, "base64url").toString("utf-8");
+    }
+    if (!text && mime === "text/plain" && p.body?.data) {
+      text = Buffer.from(p.body.data, "base64url").toString("utf-8");
+    }
+    if (p.body?.attachmentId) {
+      const contentId = gmailHeader(p, "Content-ID");
+      if (contentId && mime.startsWith("image/")) {
+        inline.push({
+          contentId: contentId.replace(/^<|>$/g, ""),
+          attachmentId: p.body.attachmentId,
+          mime,
+        });
+      } else if (p.filename) {
+        base.attachments.push({
+          id: p.body.attachmentId,
+          name: p.filename,
+          mime: mime || "application/octet-stream",
+          size: p.body.size ?? 0,
+        });
+      }
+    }
+  });
+
+  // Indlejr inline-billeder (cid:) som data-URI'er, så de vises i appen.
+  if (html && inline.length > 0) {
+    let budget = MAX_INLINE_BYTES;
+    for (const img of inline) {
+      if (budget <= 0) break;
+      const buf = await fetchGmailAttachment(token, externalId, img.attachmentId);
+      if (!buf) continue;
+      budget -= buf.length;
+      const dataUri = `data:${img.mime};base64,${buf.toString("base64")}`;
+      html = (html as string).split(`cid:${img.contentId}`).join(dataUri);
+    }
   }
-  if (part.mimeType === "text/html" && part.body?.data && !part.parts?.length) {
-    const html = Buffer.from(part.body.data, "base64url").toString("utf-8");
-    return html.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim();
+
+  base.bodyHtml = html ? sanitizeEmailHtml(html) : null;
+  base.body = text ?? (html ? htmlToText(html) : null) ?? (msg.snippet as string | null) ?? null;
+}
+
+// ─── Outlook (Microsoft Graph) helpers ────────────────────────────────────────
+
+type GraphAttachment = {
+  id: string;
+  name?: string;
+  contentType?: string;
+  size?: number;
+  isInline?: boolean;
+  contentId?: string | null;
+  contentBytes?: string;
+};
+
+async function loadOutlookDetail(
+  token: string,
+  externalId: string,
+  base: EmailDetail,
+): Promise<void> {
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/me/messages/${externalId}?$select=body,hasAttachments`,
+    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+  );
+  if (!res.ok) return;
+  const msg = await res.json();
+  const contentType = (msg.body?.contentType as string | undefined) ?? "html";
+  let html: string | null =
+    contentType.toLowerCase() === "html" ? ((msg.body?.content as string) ?? null) : null;
+  const text: string | null =
+    contentType.toLowerCase() !== "html" ? ((msg.body?.content as string) ?? null) : null;
+
+  if (msg.hasAttachments || (html && html.includes("cid:"))) {
+    // Hent vedhæftnings-LISTEN uden indhold (contentBytes) – bytes hentes
+    // kun for inline-billeder her, og for rigtige filer først ved klik.
+    const listRes = await fetch(
+      `https://graph.microsoft.com/v1.0/me/messages/${externalId}/attachments?$select=id,name,contentType,size,isInline,contentId`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    );
+    if (listRes.ok) {
+      const list = (await listRes.json()).value as GraphAttachment[];
+      let budget = MAX_INLINE_BYTES;
+      for (const att of list ?? []) {
+        const mime = att.contentType ?? "application/octet-stream";
+        const isInlineImage = att.isInline && att.contentId && mime.startsWith("image/");
+        if (isInlineImage && html && budget > 0) {
+          const one = await fetch(
+            `https://graph.microsoft.com/v1.0/me/messages/${externalId}/attachments/${att.id}`,
+            { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+          );
+          if (one.ok) {
+            const full = (await one.json()) as GraphAttachment;
+            if (full.contentBytes) {
+              budget -= (full.size ?? 0) || full.contentBytes.length;
+              const dataUri = `data:${mime};base64,${full.contentBytes}`;
+              html = html.split(`cid:${att.contentId}`).join(dataUri);
+            }
+          }
+        } else if (!att.isInline) {
+          base.attachments.push({
+            id: att.id,
+            name: att.name ?? "vedhæftning",
+            mime,
+            size: att.size ?? 0,
+          });
+        }
+      }
+    }
   }
-  for (const p of part.parts ?? []) {
-    const text = extractGmailText(p);
-    if (text) return text;
-  }
-  return "";
+
+  base.bodyHtml = html ? sanitizeEmailHtml(html) : null;
+  base.body = text ?? (html ? htmlToText(html) : null);
 }
 
 // ─── Server actions ───────────────────────────────────────────────────────────
 
-/** Henter mail-detaljer fra Supabase og forsøger at hente brødtekst fra kilden. */
+/**
+ * Henter mail i FULDT format: HTML-brødtekst (saniteret, med inline-billeder
+ * indlejret) + liste over vedhæftninger. Kilden vælges ud fra mailens
+ * source-kolonne (gmail/outlook) – IKKE workspace, som kan være historisk
+ * fejlplaceret.
+ */
 export async function getEmailDetail(emailId: string): Promise<EmailDetail | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("emails")
-    .select("id, subject, from_addr, workspace, received_at, snippet, external_id")
+    .select("id, subject, from_addr, workspace, received_at, snippet, external_id, source")
     .eq("id", emailId)
     .maybeSingle();
 
@@ -63,42 +262,79 @@ export async function getEmailDetail(emailId: string): Promise<EmailDetail | nul
     received_at: (data.received_at as string | null) ?? null,
     snippet: (data.snippet as string | null) ?? null,
     external_id: (data.external_id as string | null) ?? null,
+    bodyHtml: null,
     body: null,
+    attachments: [],
   };
 
   if (!base.external_id) return base;
+  const source = (data.source as string | null) ?? (base.workspace === "work" ? "outlook" : "gmail");
 
   try {
-    if (base.workspace === "private") {
+    if (source === "gmail") {
       const token = await getValidAccessToken();
-      if (!token) return base;
-      const res = await fetch(
-        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${base.external_id}?format=full`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
-      );
-      if (res.ok) {
-        const msg = await res.json();
-        const text = extractGmailText((msg.payload ?? {}) as GmailPart);
-        base.body = text || (msg.snippet as string | null) || null;
-      }
-    } else if (base.workspace === "work") {
+      if (token) await loadGmailDetail(token, base.external_id, base);
+    } else if (source === "outlook") {
       const token = await getValidMicrosoftToken();
-      if (!token) return base;
-      const res = await fetch(
-        `https://graph.microsoft.com/v1.0/me/messages/${base.external_id}?$select=body`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
-      );
-      if (res.ok) {
-        const msg = await res.json();
-        const html = (msg.body?.content as string) ?? "";
-        base.body = html.replace(/<[^>]+>/g, " ").replace(/\s{2,}/g, " ").trim() || null;
-      }
+      if (token) await loadOutlookDetail(token, base.external_id, base);
     }
   } catch {
-    // falder tilbage til snippet
+    // falder tilbage til snippet – UI viser stadig mailen
   }
 
   return base;
+}
+
+export type AttachmentContent = {
+  name: string;
+  mime: string;
+  /** Base64-indhold – klienten laver en Blob til visning/download. */
+  base64: string;
+};
+
+/** Henter én vedhæftnings indhold (ved klik – aldrig på forhånd). */
+export async function getEmailAttachment(
+  emailId: string,
+  attachmentId: string,
+): Promise<AttachmentContent | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("emails")
+    .select("external_id, source, workspace")
+    .eq("id", emailId)
+    .maybeSingle();
+  if (!data?.external_id) return null;
+
+  const source = (data.source as string | null) ?? (data.workspace === "work" ? "outlook" : "gmail");
+
+  try {
+    if (source === "gmail") {
+      const token = await getValidAccessToken();
+      if (!token) return null;
+      const buf = await fetchGmailAttachment(token, data.external_id as string, attachmentId);
+      if (!buf) return null;
+      return { name: "vedhæftning", mime: "application/octet-stream", base64: buf.toString("base64") };
+    }
+    if (source === "outlook") {
+      const token = await getValidMicrosoftToken();
+      if (!token) return null;
+      const res = await fetch(
+        `https://graph.microsoft.com/v1.0/me/messages/${data.external_id}/attachments/${attachmentId}`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+      );
+      if (!res.ok) return null;
+      const att = (await res.json()) as GraphAttachment;
+      if (!att.contentBytes) return null;
+      return {
+        name: att.name ?? "vedhæftning",
+        mime: att.contentType ?? "application/octet-stream",
+        base64: att.contentBytes,
+      };
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 /** Sender et svar på en mail via Gmail (privat) eller Outlook (arbejde). */
@@ -111,17 +347,17 @@ export async function sendEmailReply(
   const supabase = await createClient();
   const { data } = await supabase
     .from("emails")
-    .select("workspace, from_addr, subject, external_id")
+    .select("workspace, from_addr, subject, external_id, source")
     .eq("id", emailId)
     .maybeSingle();
 
   if (!data?.external_id) return { ok: false, error: "Mail ikke fundet" };
 
   const externalId = data.external_id as string;
-  const workspace = data.workspace as string;
+  const source = (data.source as string | null) ?? ((data.workspace as string) === "work" ? "outlook" : "gmail");
 
   try {
-    if (workspace === "private") {
+    if (source === "gmail") {
       const token = await getValidAccessToken();
       if (!token) return { ok: false, error: "Gmail ikke forbundet" };
 
@@ -164,7 +400,7 @@ export async function sendEmailReply(
       return sendRes.ok ? { ok: true } : { ok: false, error: "Gmail afvisede besked" };
     }
 
-    if (workspace === "work") {
+    if (source === "outlook") {
       const token = await getValidMicrosoftToken();
       if (!token) return { ok: false, error: "Outlook ikke forbundet" };
 
@@ -182,5 +418,5 @@ export async function sendEmailReply(
     return { ok: false, error: "Netværksfejl – prøv igen" };
   }
 
-  return { ok: false, error: "Ukendt workspace" };
+  return { ok: false, error: "Ukendt mail-kilde" };
 }

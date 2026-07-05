@@ -33,6 +33,7 @@ export function AssistantChat() {
   const [messages, setMessages] = React.useState<Message[]>([]);
   const [input, setInput] = React.useState("");
   const [pending, setPending] = React.useState(false);
+  const [engine, setEngine] = React.useState<"claude" | "regler" | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const scope = chatScopes.find((s) => s.id === scopeId) ?? chatScopes[0];
@@ -41,11 +42,14 @@ export function AssistantChat() {
     const q = text.trim();
     if (!q || pending) return;
     setInput("");
+    // Samtalehistorik sendes med, så Claude kan følge tråden i samtalen.
+    const history = messages.map((m) => ({ role: m.role, text: m.text }));
     setMessages((m) => [...m, { role: "user", text: q }]);
     setPending(true);
     try {
-      const { answer } = await askAssistant(scopeId, q);
-      setMessages((m) => [...m, { role: "assistant", text: answer }]);
+      const reply = await askAssistant(scopeId, q, history);
+      setEngine(reply.engine);
+      setMessages((m) => [...m, { role: "assistant", text: reply.answer }]);
     } catch {
       setMessages((m) => [
         ...m,
@@ -171,7 +175,16 @@ export function AssistantChat() {
         </button>
       </div>
       <p className="text-xs text-muted-foreground">
-        LifeOS foreslår – den udfører ingen handlinger uden din godkendelse.
+        {engine === "claude" ? (
+          <>Drevet af Claude AI · svarer ud fra dine rigtige opgaver, mails og kalender.</>
+        ) : engine === "regler" ? (
+          <>
+            Regelbaseret svar. Tilføj <code className="rounded bg-secondary px-1">ANTHROPIC_API_KEY</code> i
+            Vercel for rigtige AI-svar med Claude.
+          </>
+        ) : (
+          <>LifeOS foreslår – den udfører ingen handlinger uden din godkendelse.</>
+        )}
       </p>
     </div>
   );

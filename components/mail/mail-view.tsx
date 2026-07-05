@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { formatDateTime } from "@/lib/date";
 import { getWorkspaceOrder } from "@/features/tasks/section-order";
 import { categoryById } from "@/features/integrations/categorize";
+import { MailReaderDrawer } from "@/components/mail/mail-reader-drawer";
 import type { Workspace } from "@/features/tasks/constants";
 import type { MailMessage } from "@/features/integrations/types";
 
@@ -36,10 +37,16 @@ function tint(workspace: Workspace) {
   };
 }
 
-function MailRow({ mail }: { mail: MailMessage }) {
+function MailRow({ mail, onOpen }: { mail: MailMessage; onOpen: (m: MailMessage) => void }) {
   const cat = categoryById(mail.category);
   return (
-    <div className="flex items-start gap-3 border-b border-border/50 px-1 py-3.5 transition-colors last:border-0 hover:bg-secondary/30">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(mail)}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(mail)}
+      className="flex cursor-pointer items-start gap-3 border-b border-border/50 px-1 py-3.5 transition-colors last:border-0 hover:bg-secondary/30"
+    >
       <span
         aria-hidden
         className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-white shadow-sm"
@@ -78,9 +85,11 @@ function MailRow({ mail }: { mail: MailMessage }) {
 function MailSection({
   workspace,
   mails,
+  onOpen,
 }: {
   workspace: Workspace;
   mails: MailMessage[];
+  onOpen: (m: MailMessage) => void;
 }) {
   const meta = META[workspace];
   const unread = mails.filter((m) => !m.isRead).length;
@@ -118,7 +127,7 @@ function MailSection({
       ) : (
         <Card className="px-4 py-1">
           {mails.map((mail) => (
-            <MailRow key={mail.id} mail={mail} />
+            <MailRow key={mail.id} mail={mail} onOpen={onOpen} />
           ))}
         </Card>
       )}
@@ -139,6 +148,7 @@ export function MailView({
   initialOrder: Workspace[];
 }) {
   const [order, setOrder] = React.useState<Workspace[]>(initialOrder);
+  const [selected, setSelected] = React.useState<MailMessage | null>(null);
   React.useEffect(() => {
     const id = setInterval(() => setOrder(getWorkspaceOrder()), 60_000);
     return () => clearInterval(id);
@@ -174,12 +184,21 @@ export function MailView({
   return (
     <div className="space-y-4">
       {order.map((workspace) => (
-        <MailSection key={workspace} workspace={workspace} mails={byWorld[workspace]} />
+        <MailSection
+          key={workspace}
+          workspace={workspace}
+          mails={byWorld[workspace]}
+          onOpen={setSelected}
+        />
       ))}
       <p className="px-1 text-xs text-muted-foreground">
-        Rækkefølgen skifter automatisk efter arbejdstid. Mail AI læser og
-        prioriterer – den sender eller ændrer aldrig noget uden din godkendelse.
+        Klik på en mail for at læse den i fuldt format – med billeder og
+        vedhæftninger – direkte her i LifeOS.
       </p>
+      {selected && (
+        // key: ny mail = frisk drawer-state (loading osv. nulstilles ved remount)
+        <MailReaderDrawer key={selected.id} mail={selected} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }

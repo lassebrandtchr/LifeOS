@@ -11,6 +11,7 @@ import {
   searchNotion,
 } from "@/lib/notion/client";
 import { parseTaskInput } from "@/features/tasks/parse";
+import { categorizeEmail } from "@/features/integrations/categorize";
 import {
   mapRowToTask,
   deriveBucket,
@@ -99,7 +100,10 @@ export async function syncGoogleCalendarCore(
           starts_at: e.startISO,
           ends_at: e.endISO,
           all_day: e.allDay,
-          workspace: parseTaskInput(e.summary).workspace ?? "private",
+          // Google Kalender = ALTID privat. Arbejdskalenderen kommer
+          // udelukkende fra Outlook (Lasses faste regel) – tidligere kunne
+          // et #arbejde-tag i titlen flytte et Google-event til Storgaard.
+          workspace: "private",
         });
       }
     }
@@ -143,6 +147,8 @@ export async function syncGmailCore(
       received_at: m.receivedISO,
       // Gmail = privat verden (Storgaard-mail kommer via Outlook).
       workspace: "private",
+      // Meningsfuld kategori ud fra afsender/emne/uddrag (regelbaseret).
+      category: categorizeEmail({ from: m.from ?? "", subject: m.subject, snippet: m.snippet }),
     }));
 
     await supabase.from("emails").delete().eq("user_id", userId).eq("source", "gmail");
@@ -225,6 +231,8 @@ export async function syncOutlookMailCore(
       received_at: m.receivedISO,
       // Outlook-mail = Storgaard = arbejde.
       workspace: "work",
+      // Meningsfuld kategori ud fra afsender/emne/uddrag (regelbaseret).
+      category: categorizeEmail({ from: m.from ?? "", subject: m.subject, snippet: m.snippet }),
     }));
 
     await supabase.from("emails").delete().eq("user_id", userId).eq("source", "outlook");
