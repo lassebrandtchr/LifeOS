@@ -200,9 +200,9 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
         <CarGroup
           level="h3"
           Icon={CameraOff}
-          title="Biler med 0 billeder"
+          title="Biler med 0-1 billeder"
           cars={summary.noPictures}
-          emptyLabel="Alle biler har mindst ét billede"
+          emptyLabel="Alle biler har mindst 2 billeder"
           showPictures
           tone="red"
         />
@@ -212,7 +212,7 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
           Icon={ImageUp}
           title="Biler der mangler professionelle billeder"
           cars={summary.fewPictures}
-          emptyLabel="Alle biler har fulde billedsæt (over 14 billeder)"
+          emptyLabel="Alle biler har enten under 2 eller over 14 billeder"
           showPictures
           tone="sky"
         />

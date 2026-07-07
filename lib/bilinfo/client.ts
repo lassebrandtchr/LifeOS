@@ -25,7 +25,10 @@ import type {
 
 const BILINFO_EXPORT_URL = "https://gw.bilinfo.net/listingapi/api/export";
 const REVALIDATE_SECONDS = 30 * 60;
-/** Biler med op til dette antal billeder mangler professionelle billeder. */
+/** Biler med højst dette antal billeder regnes som "mangler billeder". */
+const NO_PICTURES_MAX = 1;
+/** Biler i dette interval mangler professionelle billeder (ikke 0/1 – de tælles som "mangler billeder"). */
+const FEW_PICTURES_MIN = 2;
 const FEW_PICTURES_MAX = 14;
 
 /** Tom, "ikke tilgængelig"-sammenfatning – bruges ved manglende opsætning/fejl. */
@@ -176,8 +179,8 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
     for (const v of cars) {
       if (!hasEquipment(v)) missingEquipment.push(toCar(v));
       const pics = pictureCount(v);
-      if (pics === 0) noPictures.push(toCar(v));
-      else if (pics <= FEW_PICTURES_MAX) fewPictures.push(toCar(v));
+      if (pics <= NO_PICTURES_MAX) noPictures.push(toCar(v));
+      else if (pics >= FEW_PICTURES_MIN && pics <= FEW_PICTURES_MAX) fewPictures.push(toCar(v));
     }
 
     return {
@@ -196,7 +199,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
  * Cachet indgang – deler det udledte (lille) resultat mellem forside og
  * underside i 30 min, så de 2 MB kun hentes/parses én gang pr. vindue.
  */
-const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v3"], {
+const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v4"], {
   revalidate: REVALIDATE_SECONDS,
   tags: ["bilinfo"],
 });

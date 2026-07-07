@@ -70,8 +70,8 @@ export type BilinfoSummary = {
   totalCars: number;
   /** Biler helt uden udstyrsliste (hverken standard- eller ekstraudstyr). */
   missingEquipment: CarNeedingWork[];
-  /** Biler helt uden billeder (0 billeder). */
+  /** Biler med 0–1 billeder – mangler billeder. */
   noPictures: CarNeedingWork[];
-  /** Biler med 1–14 billeder – mangler professionelle billeder. */
+  /** Biler med 2–14 billeder – mangler professionelle billeder. */
   fewPictures: CarNeedingWork[];
 };

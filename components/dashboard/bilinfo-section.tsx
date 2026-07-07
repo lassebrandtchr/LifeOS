@@ -32,7 +32,7 @@ export function BilinfoSection({
   // Kort opsummering under titlen – kun de grupper der faktisk mangler noget.
   const parts: string[] = [];
   if (summary.missingEquipment.length) parts.push(`${summary.missingEquipment.length} mangler udstyr`);
-  if (summary.noPictures.length) parts.push(`${summary.noPictures.length} uden billeder`);
+  if (summary.noPictures.length) parts.push(`${summary.noPictures.length} mangler billeder`);
   if (summary.fewPictures.length) parts.push(`${summary.fewPictures.length} mangler pro-billeder`);
   const subtitle = total === 0 ? "Alt er opdateret 🎉" : parts.join(" · ");
 
