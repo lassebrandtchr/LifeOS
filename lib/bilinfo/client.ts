@@ -25,6 +25,10 @@ import type {
 
 const BILINFO_EXPORT_URL = "https://gw.bilinfo.net/listingapi/api/export";
 const REVALIDATE_SECONDS = 30 * 60;
+/** Node's fetch har ingen default-timeout – uden denne kan et langsomt/
+ *  hængende svar fra Bilinfo blokere HELE siderenderingen på ubestemt tid
+ *  (og dermed fx en "Gem"-knaps router.refresh(), der venter på RSC'et). */
+const FETCH_TIMEOUT_MS = 10_000;
 /** Biler med højst dette antal billeder regnes som "mangler billeder". */
 const NO_PICTURES_MAX = 1;
 /** Biler i dette interval mangler professionelle billeder (ikke 0/1 – de tælles som "mangler billeder"). */
@@ -153,6 +157,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
       // Svaret er for stort til Next's fetch-cache – vi cacher i stedet det
       // udledte resultat nedenfor via unstable_cache.
       cache: "no-store",
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return EMPTY_SUMMARY;
 
