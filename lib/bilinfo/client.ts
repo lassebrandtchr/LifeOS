@@ -59,16 +59,6 @@ function hasEquipment(v: BilinfoVehicle): boolean {
   return std + extra > 0;
 }
 
-/**
- * true hvis bilen reelt er en del af det LIVE, eksterne lager på
- * hjemmesiden. Bilinfo sætter Internal="True" når en bil er taget internt
- * (fx solgt eller pillet ned) – den slags biler skal IKKE tælles med som
- * "mangler billeder/udstyr", da de ikke er til at se/købe længere.
- */
-function isLive(v: BilinfoVehicle): boolean {
-  return v.Internal !== "True";
-}
-
 /** "DD-MM-YYYY HH:MM:SS" → millisekunder siden epoch (0 hvis ugyldig/mangler). */
 function parseModifiedDate(raw?: string): number {
   const m = (raw ?? "").match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
@@ -167,10 +157,11 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
     if (!res.ok) return EMPTY_SUMMARY;
 
     const data = (await res.json()) as BilinfoExport;
-    // Ekskludér interne biler FØR dedupe, så en annonce der er blevet intern
-    // aldrig kan "vinde" over en stadig-live annonce for samme bil.
-    const liveVehicles = (data.Vehicles ?? []).filter(isLive);
-    const cars = dedupeBySource(liveVehicles);
+    // OBS: Internal="True" ekskluderes bevidst IKKE her – Storgaard Biler
+    // bruger selv det flag til at markere biler der afventer billeder, FØR
+    // de reklameres eksternt. Det er netop de biler denne oversigt skal
+    // fange, så at filtrere dem fra ville skjule præcis dem vi leder efter.
+    const cars = dedupeBySource(data.Vehicles ?? []);
 
     const missingEquipment: CarNeedingWork[] = [];
     const noPictures: CarNeedingWork[] = [];
@@ -199,7 +190,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
  * Cachet indgang – deler det udledte (lille) resultat mellem forside og
  * underside i 30 min, så de 2 MB kun hentes/parses én gang pr. vindue.
  */
-const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v4"], {
+const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v5"], {
   revalidate: REVALIDATE_SECONDS,
   tags: ["bilinfo"],
 });

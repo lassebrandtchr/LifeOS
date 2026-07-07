@@ -30,9 +30,6 @@ export type BilinfoVehicle = {
   ExtraEquipmentList?: string[];
   PictureCount?: string;
   Pictures?: string[];
-  /** "True" hvis bilen er sat til intern i Bilinfo – dvs. IKKE en del af det
-   *  live/eksterne lager på hjemmesiden længere (fx solgt/taget ned). */
-  Internal?: string;
   /** "DD-MM-YYYY HH:MM:SS" – bruges til at afgøre hvilken af flere annoncer
    *  for samme bil (kontant/leasing) der er den nyeste/mest opdaterede. */
   ModifiedDate?: string;
