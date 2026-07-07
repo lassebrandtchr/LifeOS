@@ -193,20 +193,33 @@ const EMPTY_SEARCH: SearchResults = {
   notion: [],
 };
 
+/** Filter for opgave-status i global søgning: aktive (ikke færdig/arkiveret) eller afsluttede. */
+export type TaskSearchStatus = "active" | "completed";
+
 /** Global søgning på tværs af opgaver, projekter, noter, mails og Notion. */
-export async function searchAll(query: string): Promise<SearchResults> {
+export async function searchAll(
+  query: string,
+  taskStatus: TaskSearchStatus = "active",
+): Promise<SearchResults> {
   const q = query.trim();
   if (!q || !isSupabaseConfigured()) return EMPTY_SEARCH;
   try {
     const supabase = await createClient();
     const pattern = `%${q}%`;
+    let tasksQuery = supabase
+      .from("tasks")
+      .select("*")
+      .or(`title.ilike.${pattern},description.ilike.${pattern}`);
+    // "Aktive" matcher samme definition som resten af appen (getTasksByBucket):
+    // hverken færdig eller arkiveret. "Afsluttede" er specifikt status "done"
+    // (arkiverede regnes ikke med her – det er en anden tilstand end "færdig").
+    tasksQuery =
+      taskStatus === "completed"
+        ? tasksQuery.eq("status", "done")
+        : tasksQuery.not("status", "in", "(done,archived)");
     const [tasksRes, projectsRes, notesRes, emailsRes, notionRes] =
       await Promise.all([
-        supabase
-          .from("tasks")
-          .select("*")
-          .or(`title.ilike.${pattern},description.ilike.${pattern}`)
-          .limit(8),
+        tasksQuery.limit(8),
         supabase.from("projects").select("*").ilike("name", pattern).limit(5),
         supabase
           .from("notes")

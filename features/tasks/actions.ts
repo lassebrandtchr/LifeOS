@@ -4,15 +4,15 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { searchAll } from "@/features/tasks/queries";
+import { searchAll, type TaskSearchStatus } from "@/features/tasks/queries";
 import { parseTaskInput } from "@/features/tasks/parse";
 import { deriveBucketFromDeadline as deriveBucket } from "@/features/tasks/bucket";
 import type { Bucket, Priority, Status, Workspace } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
 
 /** Global søgning (kaldes fra topbarens søgefelt). */
-export async function searchAction(query: string) {
-  return searchAll(query);
+export async function searchAction(query: string, taskStatus: TaskSearchStatus = "active") {
+  return searchAll(query, taskStatus);
 }
 
 /**

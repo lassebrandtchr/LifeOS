@@ -2,15 +2,30 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, ListChecks, FolderKanban, StickyNote, Mail, FileText } from "lucide-react";
+import {
+  Search,
+  Loader2,
+  ListChecks,
+  ListTodo,
+  CheckCircle2,
+  FolderKanban,
+  StickyNote,
+  Mail,
+  FileText,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { priorities } from "@/features/tasks/constants";
 import { searchAction } from "@/features/tasks/actions";
 import { stripHtmlInline } from "@/lib/text/strip-html";
 import { useOpenDetail } from "@/components/tasks/detail-context";
-import type { SearchResults } from "@/features/tasks/queries";
+import type { SearchResults, TaskSearchStatus } from "@/features/tasks/queries";
 import type { Task, Project } from "@/features/tasks/types";
+
+const TASK_STATUS_LABEL: Record<TaskSearchStatus, string> = {
+  active: "Aktive",
+  completed: "Afsluttede",
+};
 
 const EMPTY: SearchResults = {
   tasks: [],
@@ -28,32 +43,35 @@ export function GlobalSearch() {
   const router = useRouter();
   const { open: openDetail } = useOpenDetail();
   const [query, setQuery] = React.useState("");
+  const [taskStatus, setTaskStatus] = React.useState<TaskSearchStatus>("active");
   const [results, setResults] = React.useState<SearchResults>(EMPTY);
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
-  // Debounced søgning
+  // Debounced søgning – kører også når taskStatus skifter (uden debounce,
+  // da det er et bevidst klik og ikke tastetryk-for-tastetryk), så man med
+  // det samme ser opgaverne for den nyvalgte status.
   React.useEffect(() => {
     const q = query.trim();
+    if (q.length < 2) {
+      setResults(EMPTY);
+      return;
+    }
     // Alle state-opdateringer sker inde i timeren (asynkront), så vi undgår
     // synkrone setState-kald direkte i effekten.
     const timer = setTimeout(
       async () => {
-        if (q.length < 2) {
-          setResults(EMPTY);
-          return;
-        }
         setPending(true);
-        const res = await searchAction(q);
+        const res = await searchAction(q, taskStatus);
         setResults(res);
         setPending(false);
         setOpen(true);
       },
-      q.length < 2 ? 0 : 250,
+      250,
     );
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, taskStatus]);
 
   // Luk ved klik udenfor
   React.useEffect(() => {
@@ -110,6 +128,26 @@ export function GlobalSearch() {
           className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
         {pending && <Loader2 className="size-4 shrink-0 animate-spin" />}
+
+        {/* Skifter om opgave-resultater viser aktive eller afsluttede opgaver.
+            Projekter/noter/mails/Notion påvirkes ikke – kun opgave-status. */}
+        <button
+          type="button"
+          onClick={() =>
+            setTaskStatus((s) => (s === "active" ? "completed" : "active"))
+          }
+          title={`Viser ${TASK_STATUS_LABEL[taskStatus].toLowerCase()} opgaver – klik for at skifte til ${
+            taskStatus === "active" ? "afsluttede" : "aktive"
+          }`}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-secondary/60 px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
+        >
+          {taskStatus === "active" ? (
+            <ListTodo className="size-3.5 shrink-0 text-teal-600 dark:text-teal-400" />
+          ) : (
+            <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          )}
+          <span className="hidden sm:inline">{TASK_STATUS_LABEL[taskStatus]}</span>
+        </button>
       </div>
 
       {open && (
@@ -121,7 +159,7 @@ export function GlobalSearch() {
           ) : (
             <div className="max-h-80 overflow-y-auto">
               {results.tasks.length > 0 && (
-                <Group label="Opgaver">
+                <Group label={`Opgaver · ${TASK_STATUS_LABEL[taskStatus]}`}>
                   {results.tasks.map((t) => (
                     <button
                       key={t.id}
