@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils";
 import { priorities } from "@/features/tasks/constants";
 import { searchAction } from "@/features/tasks/actions";
 import { stripHtmlInline } from "@/lib/text/strip-html";
+import { useOpenDetail } from "@/components/tasks/detail-context";
 import type { SearchResults } from "@/features/tasks/queries";
+import type { Task, Project } from "@/features/tasks/types";
 
 const EMPTY: SearchResults = {
   tasks: [],
@@ -24,6 +26,7 @@ const EMPTY: SearchResults = {
  */
 export function GlobalSearch() {
   const router = useRouter();
+  const { open: openDetail } = useOpenDetail();
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<SearchResults>(EMPTY);
   const [open, setOpen] = React.useState(false);
@@ -74,6 +77,20 @@ export function GlobalSearch() {
     router.push(path);
   }
 
+  /** Åbn en opgave direkte i detalje-modalen (samme som fra opgavekortene). */
+  function openTask(task: Task) {
+    setOpen(false);
+    setQuery("");
+    openDetail({ type: "task", task });
+  }
+
+  /** Åbn et projekt direkte i detalje-modalen. */
+  function openProject(project: Project) {
+    setOpen(false);
+    setQuery("");
+    openDetail({ type: "project", project });
+  }
+
   /** Åbn et eksternt link (fx en Notion-side) i en ny fane. */
   function openExternal(url: string | null) {
     setOpen(false);
@@ -108,7 +125,7 @@ export function GlobalSearch() {
                   {results.tasks.map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => go("/opgaver")}
+                      onClick={() => openTask(t)}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-secondary"
                     >
                       <span
@@ -128,7 +145,7 @@ export function GlobalSearch() {
                   {results.projects.map((p) => (
                     <button
                       key={p.id}
-                      onClick={() => go("/opgaver")}
+                      onClick={() => openProject(p)}
                       className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-secondary"
                     >
                       <FolderKanban className="size-4 shrink-0 text-muted-foreground" />
