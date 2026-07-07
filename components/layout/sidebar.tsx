@@ -15,12 +15,43 @@ import type { SessionUser } from "@/lib/auth/dal";
  * Sidebar – den faste venstre-navigation på tablet/desktop.
  * Viser logo, navigationspunkter (med aktiv markering) og en profil-chip nederst.
  * Inspireret af Arc/Linear: rolig, luftig og overskuelig.
+ *
+ * To tilstande (styret af Topbar-knappen via SidebarProvider):
+ *  - pinnet (collapsed=false): fast i layoutet, fylder 16rem – indholdet ligger
+ *    ved siden af.
+ *  - foldet ind (collapsed=true): taget ud af layoutet (position: fixed), skjult
+ *    ude til venstre. "revealed" (mus i kanten/over sidebaren) skubber den frem
+ *    som et overlay. Indholdet bruger så hele bredden.
  */
-export function Sidebar({ user }: { user: SessionUser }) {
+export function Sidebar({
+  user,
+  collapsed = false,
+  revealed = false,
+  onHoverChange,
+}: {
+  user: SessionUser;
+  collapsed?: boolean;
+  revealed?: boolean;
+  onHoverChange?: (hovered: boolean) => void;
+}) {
   const pathname = usePathname();
 
   return (
-    <aside className="app-sidebar sticky top-0 hidden h-dvh w-64 shrink-0 flex-col gap-2 self-start overflow-y-auto border-r p-4 lg:flex">
+    <aside
+      onMouseEnter={collapsed ? () => onHoverChange?.(true) : undefined}
+      onMouseLeave={collapsed ? () => onHoverChange?.(false) : undefined}
+      className={cn(
+        "app-sidebar hidden h-dvh w-64 shrink-0 flex-col gap-2 overflow-y-auto border-r p-4 transition-transform duration-300 ease-out lg:flex",
+        collapsed
+          ? "fixed left-0 top-0 z-50 shadow-2xl"
+          : "sticky top-0 self-start",
+      )}
+      style={
+        collapsed
+          ? { transform: revealed ? "translateX(0)" : "translateX(-100%)" }
+          : undefined
+      }
+    >
       {/* Logo / brand */}
       <Link href="/" className="flex items-center gap-3 px-2 py-3">
         <Logo size={52} />
