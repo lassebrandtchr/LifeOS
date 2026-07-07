@@ -19,6 +19,12 @@ export type BilinfoVehicle = {
   Model?: string;
   Variant?: string;
   Year?: string;
+  Color?: string;
+  Mileage?: string;
+  Price?: string;
+  CashPrice?: string;
+  LeasingPrice?: string;
+  PriceType?: string;
   Comment?: string;
   EquipmentList?: string[];
   ExtraEquipmentList?: string[];
@@ -36,14 +42,17 @@ export type BilinfoExport = {
 export type CarNeedingWork = {
   /** Nøgle til React-lister (VehicleSourceId eller Id). */
   key: string;
-  /** Kort genkendelses-kode: de sidste 5 cifre af Bilinfo-annonce-id'et.
-   *  (Bilinfo-feedet indeholder IKKE stelnummer/VIN, så dette er den
-   *  nærmeste stabile identifikator.) */
-  code: string;
-  make: string;
-  model: string;
-  variant: string;
+  /** Bilens fulde navn: mærke + model + variant, fx "Audi TT V6 Coupé". */
+  name: string;
+  /** Årgang (tom hvis ukendt). */
   year: string;
+  /** Farve, fx "Gråmetal" (tom hvis ukendt). */
+  color: string;
+  /** Formateret pris, fx "448.480 kr." eller "Ring for pris". */
+  price: string;
+  /** Formateret km-stand, fx "55.000 km" (tom hvis ukendt). */
+  mileage: string;
+  /** Antal billeder på annoncen. */
   pictureCount: number;
 };
 
