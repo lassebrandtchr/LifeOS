@@ -38,23 +38,41 @@ async function getAuth() {
   return { supabase, userId: user.id };
 }
 
-/** Skriver en linje i aktivitetsloggen (best effort – fejler aldrig hårdt). */
+/**
+ * Kører `promise` i kapløb med en timeout – bruges til IKKE-kritiske
+ * sideeffekter (aktivitetslog, historik). Et almindeligt try/catch
+ * beskytter kun mod en smidt fejl, IKKE mod et kald der aldrig bliver
+ * færdigt (fx et hængende Supabase-svar) – uden denne kunne et enkelt
+ * langsomt "best effort"-kald blokere hele opgave-handlingen på ubestemt
+ * tid (det var netop det, der fik "Markér som færdig" til at hænge på
+ * "Gemmer …" for evigt).
+ */
+async function withTimeout(promise: PromiseLike<unknown>, ms = 5000): Promise<void> {
+  try {
+    await Promise.race([
+      promise,
+      new Promise((resolve) => setTimeout(resolve, ms)),
+    ]);
+  } catch {
+    // best effort – fejler aldrig hårdt
+  }
+}
+
+/** Skriver en linje i aktivitetsloggen (best effort – fejler aldrig hårdt, og blokerer aldrig). */
 async function logActivity(
   auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
   taskId: string | null,
   type: string,
   detail: Record<string, unknown>,
 ) {
-  try {
-    await auth.supabase.from("task_activity").insert({
+  await withTimeout(
+    auth.supabase.from("task_activity").insert({
       user_id: auth.userId,
       task_id: taskId,
       type,
       detail,
-    });
-  } catch {
-    // aktivitetslog er ikke kritisk
-  }
+    }),
+  );
 }
 
 // ───────────────────────────── Opret opgave ─────────────────────────────
@@ -208,12 +226,14 @@ export async function setTaskStatus(id: string, status: Status) {
       .single();
 
     if (isDone && data) {
-      await auth.supabase.from("task_history").insert({
-        user_id: auth.userId,
-        task_id: id,
-        title: data.title,
-        action: "completed",
-      });
+      await withTimeout(
+        auth.supabase.from("task_history").insert({
+          user_id: auth.userId,
+          task_id: id,
+          title: data.title,
+          action: "completed",
+        }),
+      );
     }
     await logActivity(
       auth,
@@ -408,12 +428,14 @@ export async function updateTask(
     if (error) return { error: error.message };
 
     if (fields.status === "done") {
-      await auth.supabase.from("task_history").insert({
-        user_id: auth.userId,
-        task_id: id,
-        title: (update.title as string) ?? undefined,
-        action: "completed",
-      });
+      await withTimeout(
+        auth.supabase.from("task_history").insert({
+          user_id: auth.userId,
+          task_id: id,
+          title: (update.title as string) ?? undefined,
+          action: "completed",
+        }),
+      );
     }
     await logActivity(auth, id, "edited", {
       title: update.title as string | undefined,
