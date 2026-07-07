@@ -25,6 +25,8 @@ import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { WeatherChip } from "@/components/dashboard/weather-chip";
 import { ActionList } from "@/components/dashboard/action-list";
 import { NewsSection } from "@/components/dashboard/news-section";
+import { BilinfoSection } from "@/components/dashboard/bilinfo-section";
+import type { BilinfoSummary } from "@/lib/bilinfo/types";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { priorities } from "@/features/tasks/constants";
 import type { WeatherSnapshot } from "@/lib/weather/types";
@@ -163,6 +165,7 @@ function DayBriefing({
   isWork,
   breakdown,
   news,
+  bilinfo,
 }: {
   unread: number;
   eventCount: number;
@@ -172,6 +175,7 @@ function DayBriefing({
   isWork: boolean;
   breakdown?: Breakdown;
   news: NewsItem[];
+  bilinfo: BilinfoSummary | null;
 }) {
   const bullets: { text: string; tone: "ok" | "warn" | "danger" | "info"; href?: string }[] = [];
 
@@ -266,6 +270,10 @@ function DayBriefing({
               );
             })}
           </div>
+
+          {/* Bilinfo-oversigt – biler der stadig mangler udstyr/billeder.
+              Kun i arbejdstid (arbejds-relateret), i bunden af Arbejdsoverblik. */}
+          {isWork && bilinfo && <BilinfoSection summary={bilinfo} />}
         </div>
 
         <div className="md:pl-5">
@@ -865,12 +873,14 @@ export function JarvisDashboard({
   weather,
   actionGroups,
   news,
+  bilinfo,
 }: {
   greeting: GreetingResult;
   data: DashboardData;
   weather: WeatherByLocation;
   actionGroups: ActionGroupsByWorkspace;
   news: { work: NewsItem[]; private: NewsItem[] };
+  bilinfo: BilinfoSummary | null;
 }) {
   const { stats, emails, todayEvents, tomorrowEvents, unreadCount } = data;
   const isWork = greeting.isWorkHours;
@@ -930,6 +940,7 @@ export function JarvisDashboard({
           today={view.today}
           isWork={isWork}
           breakdown={view.breakdown}
+          bilinfo={bilinfo}
         />
 
         {/* Hurtige handlinger – skifter automatisk mellem Storgaard Biler og

@@ -3,13 +3,14 @@ import { getGreeting } from "@/features/dashboard/greeting";
 import { getDashboardData } from "@/features/dashboard/stats";
 import { getAllWeather } from "@/lib/weather/open-meteo";
 import { getCarIndustryNews, getTechAiNews } from "@/lib/news/google-news";
+import { getBilinfoSummary } from "@/lib/bilinfo/client";
 import { getMailMessages } from "@/features/integrations/queries";
 import { getTasksByBucket } from "@/features/tasks/queries";
 import { bucketOrder } from "@/features/tasks/constants";
 import { buildActionList } from "@/features/dashboard/action-list";
 
 export default async function HomePage() {
-  const [greeting, data, weather, allMails, taskBuckets, carNews, techNews] = await Promise.all([
+  const [greeting, data, weather, allMails, taskBuckets, carNews, techNews, bilinfo] = await Promise.all([
     Promise.resolve(getGreeting()),
     getDashboardData(),
     getAllWeather(),
@@ -17,6 +18,7 @@ export default async function HomePage() {
     getTasksByBucket(),
     getCarIndustryNews(5),
     getTechAiNews(5),
+    getBilinfoSummary(),
   ]);
   const news = { work: carNews, private: techNews };
 
@@ -43,6 +45,7 @@ export default async function HomePage() {
       weather={weather}
       actionGroups={actionGroups}
       news={news}
+      bilinfo={bilinfo}
     />
   );
 }
