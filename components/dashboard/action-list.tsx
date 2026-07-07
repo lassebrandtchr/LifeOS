@@ -120,7 +120,7 @@ export function ActionList({
           Ingen opgaver eller mails kræver handling lige nu – godt gået!
         </p>
       ) : (
-        <ul className="space-y-0.5">
+        <ul className="space-y-2">
           {flatShown.map((item) => (
             <ActionRow
               key={item.id}
@@ -187,8 +187,8 @@ function ActionRow({
     <li
       onClick={clickable ? () => open({ type: "task", task: item.task! }) : undefined}
       className={cn(
-        "-mx-1.5 flex items-start gap-2.5 rounded-lg px-1.5 py-1.5 transition-colors",
-        clickable && "cursor-pointer hover:bg-secondary/50",
+        "flex items-start gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 transition-colors",
+        clickable && "cursor-pointer hover:border-border hover:bg-secondary/40",
       )}
     >
       {item.task ? (
