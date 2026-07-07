@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell } from "lucide-react";
+import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell, Check } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -110,6 +110,18 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       }
                     })
                   }
+                  onMarkDone={(fields) =>
+                    startTransition(async () => {
+                      const res = await updateTask(item.task.id, { ...fields, status: "done" });
+                      if (res?.error) toast.error(res.error);
+                      else {
+                        toast.success("Opgave markeret som færdig ✓");
+                        if (res?.warning) toast.warning(res.warning);
+                        close();
+                        router.refresh();
+                      }
+                    })
+                  }
                 />
               ) : (
                 <ProjectEditor
@@ -157,11 +169,13 @@ function TaskEditor({
   pending,
   onClose,
   onSave,
+  onMarkDone,
 }: {
   task: Task;
   pending: boolean;
   onClose: () => void;
   onSave: (fields: TaskFields) => void;
+  onMarkDone: (fields: TaskFields) => void;
 }) {
   const [title, setTitle] = React.useState(task.title);
   const [description, setDescription] = React.useState(task.description ?? "");
@@ -192,13 +206,12 @@ function TaskEditor({
     }
   }
 
-  function saveAll() {
-    if (!title.trim()) {
-      toast.error("Opgaven skal have et emne.");
-      return;
-    }
+  // Samler editorens nuværende felter – bruges af BÅDE det manuelle
+  // Gem-knap, auto-gem og "Markér som færdig", så de tre altid gemmer
+  // præcis det samme, uanset hvilken vej brugeren gemmer ad.
+  function buildFields(): TaskFields {
     const deadlineIso = localInputToIso(deadline);
-    onSave({
+    return {
       title,
       description: description.trim() || null,
       workspace,
@@ -212,8 +225,82 @@ function TaskEditor({
       reminder_at: localInputToIso(reminderAt),
       notes: notes.trim() || null,
       trade_in: tradeIn.trim() || null,
-    });
+    };
   }
+
+  // ─── Auto-gem ───────────────────────────────────────────────────────────
+  // Gemmer stille i baggrunden 1,2 sek. efter sidste ændring, så et
+  // uheldigt lukket faneblad/navigation væk fra siden ikke koster data,
+  // selvom brugeren aldrig selv trykker "Gem ændringer".
+  const [autoSaveState, setAutoSaveState] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
+  const lastSavedJson = React.useRef(JSON.stringify(buildFields()));
+  const fieldsRef = React.useRef(buildFields());
+  fieldsRef.current = buildFields();
+
+  function saveAll() {
+    if (!title.trim()) {
+      toast.error("Opgaven skal have et emne.");
+      return;
+    }
+    const fields = buildFields();
+    // Markér som gemt med det samme, så unmount-flushet nedenfor ikke sender
+    // det samme igen som en overflødig dublet, når modalen lukker.
+    lastSavedJson.current = JSON.stringify(fields);
+    onSave(fields);
+  }
+
+  function handleMarkDone() {
+    if (!title.trim()) {
+      toast.error("Opgaven skal have et emne.");
+      return;
+    }
+    // Sender de nuværende felter med, så evt. ændringer der endnu ikke er
+    // auto-gemt ikke går tabt, når opgaven markeres færdig.
+    const fields = buildFields();
+    lastSavedJson.current = JSON.stringify(fields);
+    onMarkDone(fields);
+  }
+
+  React.useEffect(() => {
+    if (!title.trim()) return; // vent til opgaven har et emne
+    const json = JSON.stringify(fieldsRef.current);
+    if (json === lastSavedJson.current) return; // ingen reelle ændringer
+
+    const timer = setTimeout(async () => {
+      setAutoSaveState("saving");
+      const fields = fieldsRef.current;
+      const res = await updateTask(task.id, fields);
+      if (res?.error) {
+        setAutoSaveState("error");
+      } else {
+        lastSavedJson.current = JSON.stringify(fields);
+        setAutoSaveState("saved");
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, workspace, priority, category, deadline, reminderAt, notes, tradeIn]);
+
+  // Gem med det samme ved unmount (Luk, Escape, klik udenfor, eller skift
+  // til en anden opgave), så de sidste ~1,2 sek. af ændringer aldrig når at
+  // gå tabt i debounce-vinduet ovenfor.
+  React.useEffect(() => {
+    return () => {
+      const fields = fieldsRef.current;
+      if (fields.title.trim() && JSON.stringify(fields) !== lastSavedJson.current) {
+        void updateTask(task.id, fields);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const autoSaveLabel: Record<typeof autoSaveState, string> = {
+    idle: "",
+    saving: "Gemmer …",
+    saved: "Ændringer gemt automatisk",
+    error: "Kunne ikke auto-gemme – prøv Gem ændringer",
+  };
 
   return (
     <>
@@ -336,13 +423,33 @@ function TaskEditor({
       </div>
 
       {/* Footer (fast) */}
-      <div className="flex shrink-0 justify-end gap-2 border-t border-border/60 px-5 py-3">
-        <Button variant="outline" onClick={onClose} disabled={pending}>
-          Luk
-        </Button>
-        <Button onClick={saveAll} disabled={pending}>
-          {pending ? "Gemmer …" : "Gem ændringer"}
-        </Button>
+      <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {task.status !== "done" && (
+            <Button
+              variant="outline"
+              className="text-success border-success/40 hover:bg-success/10"
+              onClick={handleMarkDone}
+              disabled={pending}
+            >
+              <Check className="size-4" />
+              Markér som færdig
+            </Button>
+          )}
+          {autoSaveLabel[autoSaveState] && (
+            <span className="truncate text-xs text-muted-foreground">
+              {autoSaveLabel[autoSaveState]}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            Luk
+          </Button>
+          <Button onClick={saveAll} disabled={pending}>
+            {pending ? "Gemmer …" : "Gem ændringer"}
+          </Button>
+        </div>
       </div>
     </>
   );
