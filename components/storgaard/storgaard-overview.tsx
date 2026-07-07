@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/dashboard/section-card";
 import { PageQuickActions } from "@/components/dashboard/page-quick-actions";
 import { UpcomingEvents, RecentMails } from "@/components/dashboard/mini-lists";
 import { ActionList } from "@/components/dashboard/action-list";
+import { BilinfoSection } from "@/components/dashboard/bilinfo-section";
 import { NoteCards } from "@/components/storgaard/note-cards";
 import { BarList } from "@/components/ui/chart";
 import { storgaardActions } from "@/config/quick-actions";
@@ -14,6 +15,7 @@ import { storgaardNoteCards } from "@/config/note-cards";
 import type { StorgaardStats } from "@/features/dashboard/stats";
 import type { CalendarEventItem, MailMessage } from "@/features/integrations/types";
 import type { ActionListGroups } from "@/features/dashboard/action-list";
+import type { BilinfoSummary } from "@/lib/bilinfo/types";
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -32,12 +34,14 @@ export function StorgaardOverview({
   mails,
   actionGroups,
   noteBodies,
+  bilinfo,
 }: {
   stats: StorgaardStats;
   events: CalendarEventItem[];
   mails: MailMessage[];
   actionGroups: ActionListGroups;
   noteBodies: Record<string, string>;
+  bilinfo: BilinfoSummary;
 }) {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -62,6 +66,10 @@ export function StorgaardOverview({
 
       {/* Action-liste – prioriteret, kombineret fra opgaver + Outlook-indbakke */}
       <ActionList groups={actionGroups} workspace="work" />
+
+      {/* Bilinfo-knap – egen sektion, samme knap/link som på forsiden.
+          BilinfoSection skjuler sig selv hvis feedet ikke er tilgængeligt. */}
+      <BilinfoSection summary={bilinfo} />
 
       {/* Noter – faste note-kasser (morgenmøde, ugemøde, salgsprocesser, årsoversigt) */}
       <NoteCards cards={storgaardNoteCards} initialBodies={noteBodies} />
