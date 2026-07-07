@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { isWorkHours } from "@/features/tasks/section-order";
 
 /**
- * Holder øje med arbejdstids-grænsen (08.45/17.00 hverdage, 12–16 søndag) og
+ * Holder øje med arbejdstids-grænsen (08.30/17.30 hverdage, 12–16 søndag) og
  * genindlæser server-data i det øjeblik den krydses, så forsiden skifter
  * DYNAMISK mellem arbejde/privat (grøn badge, Action-liste, indbakke m.m.)
  * uden at Lasse selv skal genindlæse siden. Tjekker hvert 30. sekund –

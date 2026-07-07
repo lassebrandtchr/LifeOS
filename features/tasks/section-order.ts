@@ -8,7 +8,7 @@ import type { Workspace } from "@/features/tasks/constants";
  * der stadig viser arbejdsopgaver.
  *
  * Arbejdstid → Storgaard Biler øverst:
- *   - Mandag–fredag: 08.45–17.00
+ *   - Mandag–fredag: 08.30–17.30
  *   - Søndag:        12.00–16.00
  * Uden for arbejdstid → Privat øverst.
  *
@@ -38,7 +38,7 @@ export function copenhagenClock(date: Date = new Date()): { day: number; hour: n
 
 export function isWorkHours(date: Date = new Date()): boolean {
   const { day, hour } = copenhagenClock(date);
-  if (day >= 1 && day <= 5) return hour >= 8.75 && hour < 17;
+  if (day >= 1 && day <= 5) return hour >= 8.5 && hour < 17.5;
   if (day === 0) return hour >= 12 && hour < 16;
   return false; // lørdag = fri
 }
