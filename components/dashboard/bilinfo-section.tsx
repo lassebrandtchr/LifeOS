@@ -1,18 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { Car, ArrowUpRight } from "lucide-react";
+import { Camera, ArrowUpRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { BilinfoSummary } from "@/lib/bilinfo/types";
 
 /**
  * Knappen i bunden af Arbejdsoverblik (venstre kolonne) der fører til den
  * fulde "Biler der mangler billeder/udstyr"-side.
  *
- * Baggrunden bruger temaets --greeting-bg (samme grønne/tema-farvede
- * gradient som "Godmorgen"-kortet), så knappen automatisk står i en
- * kontrastfyldt farve der matcher det valgte tema i både lyst og mørkt.
+ * Fast, iøjnefaldende orange "liquid glass"-gradient (bevidst IKKE en
+ * tema-token som --greeting-bg – Lasse vil have den til at skille sig ud i
+ * alle temaer, ikke matche dem). Højden styres af forælderen (className
+ * "flex-1" fra DayBriefing), så knappen altid fylder resten af venstre
+ * kolonne op til samme højde som nyhedslisten til højre – uanset hvor
+ * mange/lange nyhedsoverskrifter der er den dag.
  */
-export function BilinfoSection({ summary }: { summary: BilinfoSummary }) {
+export function BilinfoSection({
+  summary,
+  className,
+}: {
+  summary: BilinfoSummary;
+  className?: string;
+}) {
   // Ikke opsat / feedet fejlede – vis slet ikke knappen frem for en tom kasse.
   if (!summary.ok) return null;
 
@@ -27,42 +37,47 @@ export function BilinfoSection({ summary }: { summary: BilinfoSummary }) {
   const subtitle = total === 0 ? "Alt er opdateret 🎉" : parts.join(" · ");
 
   return (
-    <div className="mt-5">
+    <div className={cn("flex", className)}>
       <Link
         href="/biler-mangler"
-        className="group relative flex items-center gap-3 overflow-hidden rounded-card border border-white/15 px-4 py-3.5 text-white shadow-greeting transition-transform duration-200 hover:-translate-y-0.5"
-        style={{ backgroundImage: "var(--greeting-bg)" }}
+        className="group relative flex min-h-[132px] flex-1 flex-col justify-between gap-4 overflow-hidden rounded-card border border-white/15 p-5 text-white transition-transform duration-200 hover:-translate-y-0.5"
+        style={{
+          backgroundImage:
+            "linear-gradient(135deg, #7c2d12 0%, #c2410c 50%, #f97316 100%)",
+          boxShadow:
+            "0 0 0 1px rgba(249,115,22,0.35), 0 10px 30px -6px rgba(249,115,22,0.45), 0 18px 42px -14px rgba(15,31,51,0.25)",
+        }}
       >
-        {/* glas-skær, samme mønster som "Godmorgen"-kortet */}
+        {/* glas-skær, samme mønster som "Godmorgen"-kortet – blot orange */}
         <span
           aria-hidden
           className="pointer-events-none absolute inset-0"
           style={{
             backgroundImage:
-              "radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.22), transparent 55%)",
+              "radial-gradient(120% 80% at 100% 0%, rgba(255,255,255,0.28), transparent 55%)",
           }}
         />
 
-        <span
-          aria-hidden
-          className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur-sm"
-        >
-          <Car className="size-5" />
-        </span>
+        <div className="relative flex items-start justify-between gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+            <Camera className="size-6" strokeWidth={2} />
+          </span>
+          <div className="flex items-center gap-2">
+            {total > 0 && (
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold tabular-nums ring-1 ring-white/25">
+                {total}
+              </span>
+            )}
+            <ArrowUpRight className="size-4 shrink-0 text-white/75 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </div>
+        </div>
 
-        <span className="relative min-w-0 flex-1">
-          <span className="block text-sm font-semibold leading-snug">
+        <div className="relative">
+          <p className="text-base font-semibold leading-snug">
             Biler der mangler billeder/udstyr
-          </span>
-          <span className="mt-0.5 block truncate text-xs text-white/75">{subtitle}</span>
-        </span>
-
-        {total > 0 && (
-          <span className="relative flex size-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold tabular-nums ring-1 ring-white/20">
-            {total}
-          </span>
-        )}
-        <ArrowUpRight className="relative size-4 shrink-0 text-white/70 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </p>
+          <p className="mt-1 text-xs text-white/80">{subtitle}</p>
+        </div>
       </Link>
     </div>
   );

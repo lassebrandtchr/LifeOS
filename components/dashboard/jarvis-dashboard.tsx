@@ -245,7 +245,7 @@ function DayBriefing({
   return (
     <div className="glass-card rounded-card p-5">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:divide-x md:divide-border/60">
-        <div className="md:pr-5">
+        <div className="flex flex-col md:pr-5">
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {isWork ? "ARBEJDSOVERBLIK" : "AFTENOVERBLIK"}
           </p>
@@ -272,8 +272,10 @@ function DayBriefing({
           </div>
 
           {/* Bilinfo-oversigt – biler der stadig mangler udstyr/billeder.
-              Kun i arbejdstid (arbejds-relateret), i bunden af Arbejdsoverblik. */}
-          {isWork && bilinfo && <BilinfoSection summary={bilinfo} />}
+              Kun i arbejdstid (arbejds-relateret). flex-1 lader knappen fylde
+              resten af kolonnen, så den matcher nyhedslistens højde uanset
+              hvor mange/lange overskrifter der er den dag. */}
+          {isWork && bilinfo && <BilinfoSection summary={bilinfo} className="mt-5 flex-1" />}
         </div>
 
         <div className="md:pl-5">

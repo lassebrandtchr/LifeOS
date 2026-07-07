@@ -18,13 +18,15 @@ import type {
  *
  * Feedet er ~2 MB (over Next's 2 MB fetch-cache-grænse), så selve svaret
  * hentes uden cache ("no-store"). I stedet caches det LILLE, udledte
- * resultat via unstable_cache i 30 min – så vi højst henter og gennemgår
- * de 2 MB én gang hvert halve time, delt mellem forside og underside,
- * uden noget separat cron-job.
+ * resultat via unstable_cache i 1 time – så vi højst henter og gennemgår
+ * de 2 MB én gang i timen, delt mellem forside og underside, uden noget
+ * separat cron-job.
  */
 
 const BILINFO_EXPORT_URL = "https://gw.bilinfo.net/listingapi/api/export";
-const REVALIDATE_SECONDS = 30 * 60;
+const REVALIDATE_SECONDS = 60 * 60;
+/** Biler med op til dette antal billeder mangler professionelle billeder. */
+const FEW_PICTURES_MAX = 14;
 
 /** Tom, "ikke tilgængelig"-sammenfatning – bruges ved manglende opsætning/fejl. */
 const EMPTY_SUMMARY: BilinfoSummary = {
@@ -133,7 +135,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
       if (!hasEquipment(v)) missingEquipment.push(toCar(v));
       const pics = pictureCount(v);
       if (pics === 0) noPictures.push(toCar(v));
-      else if (pics <= 10) fewPictures.push(toCar(v));
+      else if (pics <= FEW_PICTURES_MAX) fewPictures.push(toCar(v));
     }
 
     return {
@@ -152,7 +154,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
  * Cachet indgang – deler det udledte (lille) resultat mellem forside og
  * underside i 30 min, så de 2 MB kun hentes/parses én gang pr. vindue.
  */
-const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v1"], {
+const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v2"], {
   revalidate: REVALIDATE_SECONDS,
   tags: ["bilinfo"],
 });

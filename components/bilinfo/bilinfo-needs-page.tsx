@@ -173,7 +173,7 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
           Icon={ImageUp}
           title="Biler der mangler professionelle billeder"
           cars={summary.fewPictures}
-          emptyLabel="Alle biler har fulde billedsæt (over 10 billeder)"
+          emptyLabel="Alle biler har fulde billedsæt (over 14 billeder)"
           showPictures
         />
       </section>
