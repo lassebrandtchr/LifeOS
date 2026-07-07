@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Camera, ArrowUpRight } from "lucide-react";
+import { Camera, SquareCheckBig, ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { BilinfoSummary } from "@/lib/bilinfo/types";
 
@@ -59,9 +59,15 @@ export function BilinfoSection({
         />
 
         <div className="relative flex items-start justify-between gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
-            <Camera className="size-6" strokeWidth={2} />
-          </span>
+          <div className="flex items-center gap-2">
+            {/* Kamera = mangler billeder, flueben-i-kasse = mangler udstyr */}
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+              <Camera className="size-6" strokeWidth={2} />
+            </span>
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+              <SquareCheckBig className="size-6" strokeWidth={2} />
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             {total > 0 && (
               <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/15 text-sm font-bold tabular-nums ring-1 ring-white/25">

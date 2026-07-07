@@ -18,6 +18,29 @@ import type { BilinfoSummary, CarNeedingWork } from "@/lib/bilinfo/types";
 
 const WORK = "var(--accent-work)";
 
+/**
+ * Farvekodning af de 3 sektioner, så de er nemme at adskille visuelt uden at
+ * bryde med resten af designsproget – samme "bløde badge"-stil (farvet 15%
+ * baggrund + farvet tekst) som allerede bruges andre steder i appen, blot
+ * sat konsekvent på ikon, antal-badge og en tynd farvet venstrekant på hver
+ * sektions-boks.
+ */
+const GROUP_TONE = {
+  amber: {
+    box: "border-amber-500/25 border-l-amber-500 bg-amber-500/5",
+    badge: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  },
+  red: {
+    box: "border-red-500/25 border-l-red-500 bg-red-500/5",
+    badge: "bg-red-500/15 text-red-600 dark:text-red-400",
+  },
+  sky: {
+    box: "border-sky-500/25 border-l-sky-500 bg-sky-500/5",
+    badge: "bg-sky-500/15 text-sky-600 dark:text-sky-400",
+  },
+} as const;
+type GroupTone = keyof typeof GROUP_TONE;
+
 /** Lille meta-chip (farve, km, årgang) på hvert bilkort. */
 function Meta({ Icon, children }: { Icon: LucideIcon; children: React.ReactNode }) {
   return (
@@ -28,7 +51,15 @@ function Meta({ Icon, children }: { Icon: LucideIcon; children: React.ReactNode 
   );
 }
 
-function CarCard({ car, showPictures }: { car: CarNeedingWork; showPictures?: boolean }) {
+function CarCard({
+  car,
+  showPictures,
+  tone,
+}: {
+  car: CarNeedingWork;
+  showPictures?: boolean;
+  tone: GroupTone;
+}) {
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-border/60 bg-card/50 p-4">
       <div className="flex items-start justify-between gap-2">
@@ -40,9 +71,7 @@ function CarCard({ car, showPictures }: { car: CarNeedingWork; showPictures?: bo
           <span
             className={cn(
               "shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
-              car.pictureCount === 0
-                ? "bg-red-500/15 text-red-600 dark:text-red-400"
-                : "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+              GROUP_TONE[tone].badge,
             )}
           >
             {car.pictureCount} billeder
@@ -61,13 +90,18 @@ function CarCard({ car, showPictures }: { car: CarNeedingWork; showPictures?: bo
   );
 }
 
-/** En gruppe biler med overskrift, antal og enten kort-liste eller "alt ok". */
+/**
+ * En gruppe biler med overskrift, antal og enten kort-liste eller "alt ok".
+ * Hele gruppen ligger i en tone-farvet boks (venstrekant + svag baggrund),
+ * så de 3 sektioner (udstyr/0 billeder/pro-billeder) er tydeligt adskilte.
+ */
 function CarGroup({
   Icon,
   title,
   cars,
   emptyLabel,
   showPictures,
+  tone,
   level = "h2",
 }: {
   Icon: LucideIcon;
@@ -75,21 +109,24 @@ function CarGroup({
   cars: CarNeedingWork[];
   emptyLabel: string;
   showPictures?: boolean;
+  tone: GroupTone;
   level?: "h2" | "h3";
 }) {
   const Heading = level;
   const empty = cars.length === 0;
   return (
-    <div>
+    <div className={cn("rounded-xl border border-l-4 p-4 sm:p-5", GROUP_TONE[tone].box)}>
       <div className="mb-3 flex items-center gap-2.5">
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
+        <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", GROUP_TONE[tone].badge)}>
+          <Icon className="size-4" />
+        </span>
         <Heading className={cn(level === "h2" ? "text-lg font-semibold" : "text-base font-semibold")}>
           {title}
         </Heading>
         <span
           className={cn(
             "rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",
-            empty ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-secondary text-muted-foreground",
+            empty ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : GROUP_TONE[tone].badge,
           )}
         >
           {cars.length}
@@ -104,7 +141,7 @@ function CarGroup({
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {cars.map((c) => (
-            <CarCard key={c.key} car={c} showPictures={showPictures} />
+            <CarCard key={c.key} car={c} showPictures={showPictures} tone={tone} />
           ))}
         </ul>
       )}
@@ -142,17 +179,18 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
         </div>
       </div>
 
-      {/* Sektion 1: Mangler udstyr */}
+      {/* Sektion 1: Mangler udstyr (amber) */}
       <section className="glass-card rounded-card p-5 sm:p-6">
         <CarGroup
           Icon={ListChecks}
           title="Biler der mangler udstyr"
           cars={summary.missingEquipment}
           emptyLabel="Alle biler har udstyr registreret"
+          tone="amber"
         />
       </section>
 
-      {/* Sektion 2: Mangler billeder (to undersektioner) */}
+      {/* Sektion 2: Mangler billeder – to farvekodede undersektioner (rød/blå) */}
       <section className="glass-card rounded-card space-y-6 p-5 sm:p-6">
         <div className="flex items-center gap-2.5">
           <CameraOff className="size-5 shrink-0" style={{ color: WORK }} />
@@ -166,6 +204,7 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
           cars={summary.noPictures}
           emptyLabel="Alle biler har mindst ét billede"
           showPictures
+          tone="red"
         />
 
         <CarGroup
@@ -175,6 +214,7 @@ export function BilinfoNeedsPage({ summary }: { summary: BilinfoSummary }) {
           cars={summary.fewPictures}
           emptyLabel="Alle biler har fulde billedsæt (over 14 billeder)"
           showPictures
+          tone="sky"
         />
       </section>
     </div>

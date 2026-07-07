@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Mail,
   Calendar,
@@ -242,10 +242,37 @@ function DayBriefing({
     info: "bg-teal-500",
   };
 
+  // Måler nyhedslistens EGEN højde (uafhængig af CSS Grids stretch – se
+  // "md:self-start" på news-kolonnen nedenfor) og bruger den som mindstehøjde
+  // for venstre kolonne. Uden dette stretcher Grid begge kolonner til samme
+  // (usynlige) rækkehøjde, men knappens farvede baggrund fylder HELE sin boks
+  // mens nyhedstekstens synlige indhold ofte er kortere – så knappen så ud
+  // til at "stikke længere ned" end sidste nyhed, selvom boksene reelt var
+  // lige høje. Ved i stedet selv at måle nyhedernes rigtige indholdshøjde og
+  // give venstre kolonne akkurat den højde, ender knappens bund præcis der
+  // hvor sidste nyhed rent faktisk slutter – og det opdaterer sig automatisk
+  // når nyhedsteksten fylder mere/mindre fra dag til dag.
+  const newsColRef = useRef<HTMLDivElement>(null);
+  const [newsHeight, setNewsHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = newsColRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height;
+      if (h) setNewsHeight(Math.round(h));
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div className="glass-card rounded-card p-5">
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:divide-x md:divide-border/60">
-        <div className="flex flex-col md:pr-5">
+        <div
+          className="flex flex-col md:pr-5"
+          style={newsHeight ? { minHeight: newsHeight } : undefined}
+        >
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             {isWork ? "ARBEJDSOVERBLIK" : "AFTENOVERBLIK"}
           </p>
@@ -278,7 +305,10 @@ function DayBriefing({
           {isWork && bilinfo && <BilinfoSection summary={bilinfo} className="mt-5 flex-1" />}
         </div>
 
-        <div className="md:pl-5">
+        {/* self-start: tager kolonnen UD af Grids automatiske stretch, så dens
+            højde altid er nyhedernes egen, reelle indholdshøjde – det er den
+            værdi vi måler ovenfor og bruger til at style venstre kolonne. */}
+        <div className="md:self-start md:pl-5" ref={newsColRef}>
           <NewsSection isWork={isWork} items={news} />
         </div>
       </div>
