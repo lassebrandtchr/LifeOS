@@ -35,6 +35,28 @@ const NO_PICTURES_MAX = 1;
 const FEW_PICTURES_MIN = 2;
 const FEW_PICTURES_MAX = 14;
 
+/**
+ * Biler der bevidst skjules fra oversigten, selvom Bilinfo stadig
+ * returnerer dem. Bruges til "spøgelses-annoncer": biler der IKKE længere
+ * er på lager, men som aldrig blev slettet korrekt i Bilinfo og derfor
+ * hænger som gamle interne annoncer (typisk 0 billeder, ikke rørt i
+ * månedsvis). Nøglen er VehicleSourceId – samme id deles af bilens kontant-
+ * og leasing-annonce, så begge fjernes på én gang.
+ *
+ * VIGTIGT: dette er en manuel undtagelsesliste for KONKRETE biler Lasse
+ * har bekræftet er væk fra lageret – IKKE en generel Internal-filtrering.
+ * Interne biler der reelt afventer billeder skal STADIG med (det er netop
+ * dem oversigten findes for at fange). Tilføj kun id'er her når en bil er
+ * bekræftet fjernet, men bliver ved med at spøge i feedet.
+ */
+const IGNORED_SOURCE_IDS = new Set<string>([
+  // Ford Transit Connect EcoBlue Trend lang (2020, hvid, 10.000 km) – ikke
+  // på lager længere, men hang som intern 0-billeder-annonce i Bilinfo
+  // (oprettet 17-12-2025, sidst ændret 04-02-2026, aldrig annonceret).
+  // Bekræftet fjernet af Lasse 08-07-2026.
+  "abb834ac-94b0-44c6-8e9e-02f79e949ec1",
+]);
+
 /** Tom, "ikke tilgængelig"-sammenfatning – bruges ved manglende opsætning/fejl. */
 const EMPTY_SUMMARY: BilinfoSummary = {
   ok: false,
@@ -166,7 +188,11 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
     // bruger selv det flag til at markere biler der afventer billeder, FØR
     // de reklameres eksternt. Det er netop de biler denne oversigt skal
     // fange, så at filtrere dem fra ville skjule præcis dem vi leder efter.
-    const cars = dedupeBySource(data.Vehicles ?? []);
+    const cars = dedupeBySource(data.Vehicles ?? []).filter(
+      // Skjul konkrete "spøgelses-biler" der er fjernet fra lageret, men
+      // stadig hænger i Bilinfo-feedet (se IGNORED_SOURCE_IDS).
+      (v) => !IGNORED_SOURCE_IDS.has(v.VehicleSourceId ?? ""),
+    );
 
     const missingEquipment: CarNeedingWork[] = [];
     const noPictures: CarNeedingWork[] = [];
@@ -195,7 +221,7 @@ async function fetchAndSummarize(): Promise<BilinfoSummary> {
  * Cachet indgang – deler det udledte (lille) resultat mellem forside og
  * underside i 30 min, så de 2 MB kun hentes/parses én gang pr. vindue.
  */
-const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v5"], {
+const getCachedSummary = unstable_cache(fetchAndSummarize, ["bilinfo-summary-v6"], {
   revalidate: REVALIDATE_SECONDS,
   tags: ["bilinfo"],
 });
