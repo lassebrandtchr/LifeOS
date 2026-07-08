@@ -209,13 +209,18 @@ export function buildActionList(
   mails: MailMessage[],
   workspace: Workspace,
 ): ActionListGroups {
-  const threads = groupMailsIntoThreads(mails);
+  // I PRIVAT-verdenen skal Action-listen KUN vise Lasses egne opgaver –
+  // ingen mail. Vi dropper derfor både mail-berigelsen af opgaver og de
+  // selvstændige "Fra mail"-punkter, så privat udelukkende er de opgaver,
+  // han selv opretter (arbejde/Storgaard bruger stadig mail som før).
+  const includeMail = workspace !== "private";
+  const threads = includeMail ? groupMailsIntoThreads(mails) : [];
   const claimedThreadIds = new Set<string>();
   const items: ActionItem[] = [];
 
   for (const task of tasks) {
     const available = threads.filter((t) => !claimedThreadIds.has(t.id));
-    const match = matchTaskToThread(task, available);
+    const match = includeMail ? matchTaskToThread(task, available) : null;
     if (match) claimedThreadIds.add(match.id);
 
     const rule = match ? findFiringRule(match, workspace) : null;
