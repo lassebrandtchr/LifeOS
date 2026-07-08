@@ -88,7 +88,7 @@ export function TextScratchpad() {
         className="inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3.5 py-2 text-sm font-bold text-primary transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-primary/15 hover:shadow-soft"
       >
         <FileText className="size-4 shrink-0" />
-        <span className="leading-tight">tekst med fed skrift.</span>
+        <span className="leading-tight">Tekst med FED skrift</span>
       </button>
 
       {/* Modalen renderes via portal DIREKTE på <body>, ikke inde i kortet.
@@ -109,7 +109,7 @@ export function TextScratchpad() {
                 }
               >
                 <motion.div
-                  className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg"
+                  className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg"
                   initial={{ opacity: 0, scale: 0.96, y: 12 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -122,7 +122,7 @@ export function TextScratchpad() {
                         <FileText className="size-4" />
                       </span>
                       <h2 className="text-base font-semibold leading-tight">
-                        Tekstboks
+                        Tekst med FED skrift
                       </h2>
                     </div>
                     <button
@@ -142,7 +142,7 @@ export function TextScratchpad() {
                       onChange={(e) => setText(e.target.value)}
                       placeholder="Skriv eller indsæt din tekst her …"
                       spellCheck={false}
-                      className="min-h-[45vh] w-full resize-y rounded-xl border px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring/40"
+                      className="min-h-[55vh] w-full resize-y rounded-xl border px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring/40"
                       style={{
                         backgroundColor:
                           "color-mix(in oklab, var(--primary) 8%, var(--card))",
