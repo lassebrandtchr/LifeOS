@@ -28,6 +28,10 @@ export type ActionState =
 const NOT_READY =
   "Databasen er ikke klar endnu. Kør migration 0003 i Supabase først.";
 
+/** Vises når backenden ikke svarer i tide – så knappen frigøres i stedet for at hænge. */
+const BACKEND_TIMEOUT =
+  "Kunne ikke gemme lige nu – tjek din forbindelse og prøv igen.";
+
 async function getAuth() {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createClient();
@@ -56,6 +60,24 @@ async function withTimeout(promise: PromiseLike<unknown>, ms = 5000): Promise<vo
   } catch {
     // best effort – fejler aldrig hårdt
   }
+}
+
+/** Sentinel: kapløbet blev vundet af timeouten, ikke af selve kaldet. */
+const TIMED_OUT = Symbol("timed-out");
+
+/**
+ * Som withTimeout, men til KRITISKE kald hvor vi har brug for svaret (fx
+ * selve opgave-opdateringen). Returnerer enten kaldets resultat eller
+ * TIMED_OUT, hvis backenden ikke svarer i tide – så handlingen kan give en
+ * venlig fejl i stedet for at hænge for evigt. Uden dette ville et langsomt/
+ * utilgængeligt Supabase efterlade knappen fast på "Gemmer …" (React's
+ * startTransition forbliver pending), og handlingen ville føles ignoreret.
+ */
+async function raceTimeout<T>(promise: PromiseLike<T>, ms = 12_000): Promise<T | typeof TIMED_OUT> {
+  return Promise.race([
+    promise,
+    new Promise<typeof TIMED_OUT>((resolve) => setTimeout(() => resolve(TIMED_OUT), ms)),
+  ]);
 }
 
 /** Skriver en linje i aktivitetsloggen (best effort – fejler aldrig hårdt, og blokerer aldrig). */
@@ -392,11 +414,18 @@ export async function updateTask(
   }
 
   try {
-    let { error } = await auth.supabase
-      .from("tasks")
-      .update(update)
-      .eq("id", id)
-      .eq("user_id", auth.userId);
+    // Selve opdateringen kappes med en timeout: hvis Supabase ikke svarer,
+    // returnerer vi en venlig fejl i stedet for at lade kaldet hænge – ellers
+    // ville modalens "Gem"/"Markér som færdig"-knap sidde fast på "Gemmer …".
+    const first = await raceTimeout(
+      auth.supabase
+        .from("tasks")
+        .update(update)
+        .eq("id", id)
+        .eq("user_id", auth.userId),
+    );
+    if (first === TIMED_OUT) return { error: BACKEND_TIMEOUT };
+    let { error } = first;
 
     // Migration 0011 (kolonnen "trade_in") er måske ikke kørt i Supabase
     // endnu – lad ikke det blokere resten af opgaven (titel/deadline/status
@@ -412,11 +441,14 @@ export async function updateTask(
         /trade_in/i.test(error?.message ?? ""));
     if (missingTradeIn) {
       delete update.trade_in;
-      const retry = await auth.supabase
-        .from("tasks")
-        .update(update)
-        .eq("id", id)
-        .eq("user_id", auth.userId);
+      const retry = await raceTimeout(
+        auth.supabase
+          .from("tasks")
+          .update(update)
+          .eq("id", id)
+          .eq("user_id", auth.userId),
+      );
+      if (retry === TIMED_OUT) return { error: BACKEND_TIMEOUT };
       error = retry.error;
       if (!error) {
         return {
