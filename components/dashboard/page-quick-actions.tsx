@@ -7,6 +7,7 @@ import { Zap, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { SectionCard } from "@/components/dashboard/section-card";
+import { TextScratchpad } from "@/components/dashboard/text-scratchpad";
 import { quickCreateTask } from "@/features/tasks/actions";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import type { Workspace, Priority, Status } from "@/features/tasks/constants";
@@ -47,7 +48,14 @@ const item: Variants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" } },
 };
 
-export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
+export function PageQuickActions({
+  actions,
+  scratchpad = false,
+}: {
+  actions: QuickAction[];
+  /** Vis "tekst med fed skrift."-knappen i headeren (kun forside + Storgaard). */
+  scratchpad?: boolean;
+}) {
   const router = useRouter();
   const { open } = useOpenDetail();
   const [pending, setPending] = React.useState<string | null>(null);
@@ -93,7 +101,11 @@ export function PageQuickActions({ actions }: { actions: QuickAction[] }) {
   }
 
   return (
-    <SectionCard title="Hurtige handlinger" icon={Zap}>
+    <SectionCard
+      title="Hurtige handlinger"
+      icon={Zap}
+      headerAction={scratchpad ? <TextScratchpad /> : undefined}
+    >
       <motion.div
         variants={{ show: { transition: { staggerChildren: 0.05 } } }}
         initial="hidden"

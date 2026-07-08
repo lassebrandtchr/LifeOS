@@ -62,7 +62,7 @@ export function StorgaardOverview({
       </div>
 
       {/* Hurtige handlinger */}
-      <PageQuickActions actions={storgaardActions} />
+      <PageQuickActions actions={storgaardActions} scratchpad />
 
       {/* Action-liste – prioriteret, kombineret fra opgaver + Outlook-indbakke */}
       <ActionList groups={actionGroups} workspace="work" />

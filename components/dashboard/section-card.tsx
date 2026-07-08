@@ -29,12 +29,16 @@ export function SectionCard({
   title,
   icon: Icon,
   href,
+  headerAction,
   children,
   className,
 }: {
   title: string;
   icon: LucideIcon;
   href?: string;
+  /** Valgfrit element øverst til højre i headeren (fx en knap). Vises i
+   *  stedet for "se alt"-linket, hvis der ikke også er en href. */
+  headerAction?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -47,6 +51,7 @@ export function SectionCard({
           </div>
           <CardTitle>{title}</CardTitle>
         </div>
+        {headerAction}
         {href && (
           <Link
             href={href}

@@ -978,7 +978,7 @@ export function JarvisDashboard({
         {/* Hurtige handlinger – skifter automatisk mellem Storgaard Biler og
             Privat ud fra arbejdstid (samme knapper som på undersiderne), i
             samme bredde som Arbejdsoverblik ovenover, men mere kompakte kasser. */}
-        <PageQuickActions actions={isWork ? storgaardActions : privatActions} />
+        <PageQuickActions actions={isWork ? storgaardActions : privatActions} scratchpad />
 
         {/* Lille udgave af Action-listen – samme data/logik som undersiderne,
             skifter automatisk mellem arbejde og privat ud fra arbejdstid,
