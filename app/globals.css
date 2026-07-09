@@ -77,7 +77,17 @@
 /* ------------------------------ DARK MODE ----------------------------- */
 /* Kølig slate-grafit på selve fladen, så den grønne menu står tydeligt frem.
    Grøn bevares som brand-/accentfarve (knapper, aktive elementer, badges). */
-.dark {
+/*
+  LIGHT MODE: "lyst chrome, mørke paneler".
+  Alle KASSER (kort/glas/bg-card) skal i light mode være mørke med lys tekst,
+  så de træder tydeligt frem (Lasses ønske). I stedet for at opfinde en ny
+  palette genbruger vi temaets MØRKE tokens – de er allerede gennemtestede og
+  garanterer læsbar tekst/inputs/kanter INDE i kasserne. Vi opnår det ved at
+  lade selve kasse-elementet arve dark-mode-tokens; alt uden for kasser
+  (baggrund, sidebar, topbar) beholder de lyse tokens.
+*/
+.dark,
+:root:not(.dark) :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #0f161e; /* kølig mørk slate-grafit */
   --foreground: #e7ecf4;
   --card: #1c2532; /* boks: lidt lysere end baggrunden for mere kontrast */
@@ -167,7 +177,8 @@
   --sidebar-border: #a9c4e6;
   --greeting-bg: linear-gradient(135deg, #081c40 0%, #123068 60%, #1c4691 100%);
 }
-.dark[data-theme="navy"] {
+.dark[data-theme="navy"],
+:root:not(.dark)[data-theme="navy"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #0d1422;
   --card: #182337; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e7ecf4;
@@ -215,7 +226,8 @@
   --sidebar-border: #9fccc7;
   --greeting-bg: linear-gradient(135deg, #083832 0%, #0f6b60 60%, #14897b 100%);
 }
-.dark[data-theme="petrol"] {
+.dark[data-theme="petrol"],
+:root:not(.dark)[data-theme="petrol"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #0e181b;
   --card: #182629; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e6eff0;
@@ -263,7 +275,8 @@
   --sidebar-border: #bcaade;
   --greeting-bg: linear-gradient(135deg, #2a1360 0%, #4c1d95 60%, #6d3bd8 100%);
 }
-.dark[data-theme="ametyst"] {
+.dark[data-theme="ametyst"],
+:root:not(.dark)[data-theme="ametyst"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #14121f;
   --card: #211c31; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #ebe7f4;
@@ -311,7 +324,8 @@
   --sidebar-border: #cda3a8;
   --greeting-bg: linear-gradient(135deg, #4a0d20 0%, #7c1533 60%, #a11d3f 100%);
 }
-.dark[data-theme="bordeaux"] {
+.dark[data-theme="bordeaux"],
+:root:not(.dark)[data-theme="bordeaux"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #191014;
   --card: #281b21; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #f2e8eb;
@@ -359,7 +373,8 @@
   --sidebar-border: #aeb9c4;
   --greeting-bg: linear-gradient(135deg, #14181f 0%, #2b3646 60%, #435268 100%);
 }
-.dark[data-theme="grafit"] {
+.dark[data-theme="grafit"],
+:root:not(.dark)[data-theme="grafit"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
   --background: #101318;
   --card: #1c222a; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e9edf2;
