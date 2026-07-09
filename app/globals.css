@@ -398,6 +398,54 @@
   --greeting-bg: linear-gradient(135deg, #232c38 0%, #46566b 55%, #9fb4cc 100%);
 }
 
+/*
+  LIGHT MODE – KASSE-FARVE ("liquid glass").
+  De mørke paneler ovenfor var for tæt på sort og lod glas-kasser (grå-slate)
+  og massive bg-card-kasser (mørk temafarve) se forskellige ud. Her sættes ÉN
+  ensartet, medium tema-farve for ALLE kasser i light mode: massive (--card)
+  og glas (--glass-bg/-strong) får samme kulør, så de matcher, mens glasset
+  beholder sin blur/gennemsigtighed. Farven er lysere end det tidligere
+  næsten-sorte, men mørk nok til at hvid tekst forbliver læsbar. Overstyrer
+  KUN kasse-baggrunden – al øvrig (mørk) styling inde i kasserne bevares, og
+  rigtig dark mode røres ikke. Kun tre tokens pr. tema, nemme at finjustere.
+*/
+:root:not(.dark) :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #2f5a41; /* grøn */
+  --glass-bg: rgba(47, 90, 65, 0.92);
+  --glass-bg-strong: rgba(47, 90, 65, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+:root:not(.dark)[data-theme="navy"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #33507f;
+  --glass-bg: rgba(51, 80, 127, 0.92);
+  --glass-bg-strong: rgba(51, 80, 127, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+:root:not(.dark)[data-theme="petrol"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #235d57;
+  --glass-bg: rgba(35, 93, 87, 0.92);
+  --glass-bg-strong: rgba(35, 93, 87, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+:root:not(.dark)[data-theme="ametyst"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #453b73;
+  --glass-bg: rgba(69, 59, 115, 0.92);
+  --glass-bg-strong: rgba(69, 59, 115, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+:root:not(.dark)[data-theme="bordeaux"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #632c40;
+  --glass-bg: rgba(99, 44, 64, 0.92);
+  --glass-bg-strong: rgba(99, 44, 64, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+:root:not(.dark)[data-theme="grafit"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+  --card: #3a4657;
+  --glass-bg: rgba(58, 70, 87, 0.92);
+  --glass-bg-strong: rgba(58, 70, 87, 0.96);
+  --glass-border: rgba(235, 240, 250, 0.16);
+}
+
 /* Logo følger farvetemaet: brand-ikonet er grønt (PNG), så vi hue-roterer
    det grønne over i temaets farvetone (samme filter virker på både light-
    og dark-logoet, da begge er grøn-baserede). Grafit afmættes i stedet.
