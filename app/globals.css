@@ -23,7 +23,7 @@
   /* Flader */
   --background: #eef6ee; /* mild, lys grøn-hvid */
   --foreground: #0d2018; /* dyb skov-grøn tekst */
-  --card: #ffffff;
+  --card: #e6f3e6; /* boks: let grøn-tonet, lidt mørkere end baggrunden (men lysere end sidebaren) */
   --card-foreground: #0d2018;
   --popover: #ffffff;
   --popover-foreground: #0d2018;
@@ -80,7 +80,7 @@
 .dark {
   --background: #0f161e; /* kølig mørk slate-grafit */
   --foreground: #e7ecf4;
-  --card: #18212d; /* slate-flade */
+  --card: #1c2532; /* boks: lidt lysere end baggrunden for mere kontrast */
   --card-foreground: #e7ecf4;
   --popover: #18212d;
   --popover-foreground: #e7ecf4;
@@ -146,6 +146,7 @@
 /* ------ NAVY – dyb navy-blå (Lasses ønske: lyseblå light, navy dark) ---- */
 :root[data-theme="navy"] {
   --background: #ecf2fb;
+  --card: #e4edfa; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #0c1a33;
   --primary: #1e56c8;
   --primary-foreground: #ffffff;
@@ -168,6 +169,7 @@
 }
 .dark[data-theme="navy"] {
   --background: #0d1422;
+  --card: #182337; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e7ecf4;
   --primary: #6aa5ff;
   --primary-foreground: #071022;
@@ -192,6 +194,7 @@
 /* --------------------- PETROL – rolig blågrøn/teal ---------------------- */
 :root[data-theme="petrol"] {
   --background: #eaf5f4;
+  --card: #e1f1f0; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #0a201f;
   --primary: #0d9488;
   --primary-foreground: #ffffff;
@@ -214,6 +217,7 @@
 }
 .dark[data-theme="petrol"] {
   --background: #0e181b;
+  --card: #182629; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e6eff0;
   --primary: #2dd4bf;
   --primary-foreground: #04201c;
@@ -238,6 +242,7 @@
 /* ---------------------- AMETYST – elegant dyb lilla --------------------- */
 :root[data-theme="ametyst"] {
   --background: #f2effb;
+  --card: #ede7f9; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #1a1230;
   --primary: #7c3aed;
   --primary-foreground: #ffffff;
@@ -260,6 +265,7 @@
 }
 .dark[data-theme="ametyst"] {
   --background: #14121f;
+  --card: #211c31; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #ebe7f4;
   --primary: #a78bfa;
   --primary-foreground: #170e2e;
@@ -284,6 +290,7 @@
 /* --------------------- BORDEAUX – dyb, varm vinrød ---------------------- */
 :root[data-theme="bordeaux"] {
   --background: #faeff1;
+  --card: #f7e7ea; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #2b0a14;
   --primary: #a11d3f;
   --primary-foreground: #ffffff;
@@ -306,6 +313,7 @@
 }
 .dark[data-theme="bordeaux"] {
   --background: #191014;
+  --card: #281b21; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #f2e8eb;
   --primary: #e0637e;
   --primary-foreground: #2b0a14;
@@ -330,6 +338,7 @@
 /* ------------------ GRAFIT – eksklusiv stål/mørkegrå -------------------- */
 :root[data-theme="grafit"] {
   --background: #f1f3f5;
+  --card: #eaedf0; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #16191d;
   --primary: #334155;
   --primary-foreground: #ffffff;
@@ -352,6 +361,7 @@
 }
 .dark[data-theme="grafit"] {
   --background: #101318;
+  --card: #1c222a; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e9edf2;
   --primary: #9fb4cc;
   --primary-foreground: #101318;
