@@ -14,14 +14,39 @@ import type { NewsItem } from "@/lib/news/types";
 
 const REVALIDATE_SECONDS = 6 * 60 * 60;
 
+/** Sikker kode-punkt → tegn (kaster ikke på ugyldige værdier). */
+function fromCodePoint(code: number): string {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return "";
+  try {
+    return String.fromCodePoint(code);
+  } catch {
+    return "";
+  }
+}
+
+/** Almindelige navngivne HTML-entiteter i nyhedstitler (ud over de numeriske). */
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’",
+  sbquo: "‚", bdquo: "„", ndash: "–", mdash: "—",
+  hellip: "…", laquo: "«", raquo: "»", middot: "·",
+  copy: "©", reg: "®", trade: "™", deg: "°",
+  euro: "€", pound: "£", times: "×",
+  aelig: "æ", AElig: "Æ", oslash: "ø", Oslash: "Ø", aring: "å", Aring: "Å",
+};
+
+/**
+ * Afkoder HTML-entiteter i titler/kilder fra RSS-feeds. Feedsene sender
+ * ofte typografiske tegn som NUMERISKE referencer – fx &#8220;/&#8221;
+ * (krøllede citationstegn “ ”) og &#8211; (tankestreg –) – som ellers ville
+ * stå råt i overskriften. Håndterer både decimale (&#8220;), hexadecimale
+ * (&#x201C;) og de gængse navngivne (&ldquo;, &amp; osv.).
+ */
 function decodeEntities(s: string): string {
   return s
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => fromCodePoint(parseInt(dec, 10)))
+    .replace(/&([a-zA-Z][a-zA-Z0-9]*);/g, (m, name) => NAMED_ENTITIES[name] ?? m)
     .trim();
 }
 
