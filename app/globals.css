@@ -23,7 +23,7 @@
   /* Flader */
   --background: #eef6ee; /* mild, lys grøn-hvid */
   --foreground: #0d2018; /* dyb skov-grøn tekst */
-  --card: #e6f3e6; /* boks: let grøn-tonet, lidt mørkere end baggrunden (men lysere end sidebaren) */
+  --card: #ffffff;
   --card-foreground: #0d2018;
   --popover: #ffffff;
   --popover-foreground: #0d2018;
@@ -77,20 +77,10 @@
 /* ------------------------------ DARK MODE ----------------------------- */
 /* Kølig slate-grafit på selve fladen, så den grønne menu står tydeligt frem.
    Grøn bevares som brand-/accentfarve (knapper, aktive elementer, badges). */
-/*
-  LIGHT MODE: "lyst chrome, mørke paneler".
-  Alle KASSER (kort/glas/bg-card) skal i light mode være mørke med lys tekst,
-  så de træder tydeligt frem (Lasses ønske). I stedet for at opfinde en ny
-  palette genbruger vi temaets MØRKE tokens – de er allerede gennemtestede og
-  garanterer læsbar tekst/inputs/kanter INDE i kasserne. Vi opnår det ved at
-  lade selve kasse-elementet arve dark-mode-tokens; alt uden for kasser
-  (baggrund, sidebar, topbar) beholder de lyse tokens.
-*/
-.dark,
-:root:not(.dark) :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark {
   --background: #0f161e; /* kølig mørk slate-grafit */
   --foreground: #e7ecf4;
-  --card: #1c2532; /* boks: lidt lysere end baggrunden for mere kontrast */
+  --card: #18212d; /* slate-flade */
   --card-foreground: #e7ecf4;
   --popover: #18212d;
   --popover-foreground: #e7ecf4;
@@ -156,7 +146,6 @@
 /* ------ NAVY – dyb navy-blå (Lasses ønske: lyseblå light, navy dark) ---- */
 :root[data-theme="navy"] {
   --background: #ecf2fb;
-  --card: #e4edfa; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #0c1a33;
   --primary: #1e56c8;
   --primary-foreground: #ffffff;
@@ -177,10 +166,8 @@
   --sidebar-border: #a9c4e6;
   --greeting-bg: linear-gradient(135deg, #081c40 0%, #123068 60%, #1c4691 100%);
 }
-.dark[data-theme="navy"],
-:root:not(.dark)[data-theme="navy"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark[data-theme="navy"] {
   --background: #0d1422;
-  --card: #182337; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e7ecf4;
   --primary: #6aa5ff;
   --primary-foreground: #071022;
@@ -205,7 +192,6 @@
 /* --------------------- PETROL – rolig blågrøn/teal ---------------------- */
 :root[data-theme="petrol"] {
   --background: #eaf5f4;
-  --card: #e1f1f0; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #0a201f;
   --primary: #0d9488;
   --primary-foreground: #ffffff;
@@ -226,10 +212,8 @@
   --sidebar-border: #9fccc7;
   --greeting-bg: linear-gradient(135deg, #083832 0%, #0f6b60 60%, #14897b 100%);
 }
-.dark[data-theme="petrol"],
-:root:not(.dark)[data-theme="petrol"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark[data-theme="petrol"] {
   --background: #0e181b;
-  --card: #182629; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e6eff0;
   --primary: #2dd4bf;
   --primary-foreground: #04201c;
@@ -254,7 +238,6 @@
 /* ---------------------- AMETYST – elegant dyb lilla --------------------- */
 :root[data-theme="ametyst"] {
   --background: #f2effb;
-  --card: #ede7f9; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #1a1230;
   --primary: #7c3aed;
   --primary-foreground: #ffffff;
@@ -275,10 +258,8 @@
   --sidebar-border: #bcaade;
   --greeting-bg: linear-gradient(135deg, #2a1360 0%, #4c1d95 60%, #6d3bd8 100%);
 }
-.dark[data-theme="ametyst"],
-:root:not(.dark)[data-theme="ametyst"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark[data-theme="ametyst"] {
   --background: #14121f;
-  --card: #211c31; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #ebe7f4;
   --primary: #a78bfa;
   --primary-foreground: #170e2e;
@@ -303,7 +284,6 @@
 /* --------------------- BORDEAUX – dyb, varm vinrød ---------------------- */
 :root[data-theme="bordeaux"] {
   --background: #faeff1;
-  --card: #f7e7ea; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #2b0a14;
   --primary: #a11d3f;
   --primary-foreground: #ffffff;
@@ -324,10 +304,8 @@
   --sidebar-border: #cda3a8;
   --greeting-bg: linear-gradient(135deg, #4a0d20 0%, #7c1533 60%, #a11d3f 100%);
 }
-.dark[data-theme="bordeaux"],
-:root:not(.dark)[data-theme="bordeaux"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark[data-theme="bordeaux"] {
   --background: #191014;
-  --card: #281b21; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #f2e8eb;
   --primary: #e0637e;
   --primary-foreground: #2b0a14;
@@ -352,7 +330,6 @@
 /* ------------------ GRAFIT – eksklusiv stål/mørkegrå -------------------- */
 :root[data-theme="grafit"] {
   --background: #f1f3f5;
-  --card: #eaedf0; /* boks: lidt mørkere end baggrunden, lysere end sidebaren */
   --foreground: #16191d;
   --primary: #334155;
   --primary-foreground: #ffffff;
@@ -373,10 +350,8 @@
   --sidebar-border: #aeb9c4;
   --greeting-bg: linear-gradient(135deg, #14181f 0%, #2b3646 60%, #435268 100%);
 }
-.dark[data-theme="grafit"],
-:root:not(.dark)[data-theme="grafit"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
+.dark[data-theme="grafit"] {
   --background: #101318;
-  --card: #1c222a; /* boks: lidt lysere end baggrunden for mere kontrast */
   --foreground: #e9edf2;
   --primary: #9fb4cc;
   --primary-foreground: #101318;
@@ -396,54 +371,6 @@
   --sidebar-grad: linear-gradient(168deg, #171c23 0%, #0d1116 55%, #13181f 100%);
   --sidebar-border: #2b3541;
   --greeting-bg: linear-gradient(135deg, #232c38 0%, #46566b 55%, #9fb4cc 100%);
-}
-
-/*
-  LIGHT MODE – KASSE-FARVE ("liquid glass").
-  De mørke paneler ovenfor var for tæt på sort og lod glas-kasser (grå-slate)
-  og massive bg-card-kasser (mørk temafarve) se forskellige ud. Her sættes ÉN
-  ensartet, medium tema-farve for ALLE kasser i light mode: massive (--card)
-  og glas (--glass-bg/-strong) får samme kulør, så de matcher, mens glasset
-  beholder sin blur/gennemsigtighed. Farven er lysere end det tidligere
-  næsten-sorte, men mørk nok til at hvid tekst forbliver læsbar. Overstyrer
-  KUN kasse-baggrunden – al øvrig (mørk) styling inde i kasserne bevares, og
-  rigtig dark mode røres ikke. Kun tre tokens pr. tema, nemme at finjustere.
-*/
-:root:not(.dark) :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #2f5a41; /* grøn */
-  --glass-bg: rgba(47, 90, 65, 0.92);
-  --glass-bg-strong: rgba(47, 90, 65, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
-}
-:root:not(.dark)[data-theme="navy"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #33507f;
-  --glass-bg: rgba(51, 80, 127, 0.92);
-  --glass-bg-strong: rgba(51, 80, 127, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
-}
-:root:not(.dark)[data-theme="petrol"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #235d57;
-  --glass-bg: rgba(35, 93, 87, 0.92);
-  --glass-bg-strong: rgba(35, 93, 87, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
-}
-:root:not(.dark)[data-theme="ametyst"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #453b73;
-  --glass-bg: rgba(69, 59, 115, 0.92);
-  --glass-bg-strong: rgba(69, 59, 115, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
-}
-:root:not(.dark)[data-theme="bordeaux"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #632c40;
-  --glass-bg: rgba(99, 44, 64, 0.92);
-  --glass-bg-strong: rgba(99, 44, 64, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
-}
-:root:not(.dark)[data-theme="grafit"] :is([data-slot="card"], .glass-card, .glass-card-strong, [class*="bg-card"]) {
-  --card: #3a4657;
-  --glass-bg: rgba(58, 70, 87, 0.92);
-  --glass-bg-strong: rgba(58, 70, 87, 0.96);
-  --glass-border: rgba(235, 240, 250, 0.16);
 }
 
 /* Logo følger farvetemaet: brand-ikonet er grønt (PNG), så vi hue-roterer
