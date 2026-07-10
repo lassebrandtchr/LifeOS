@@ -62,23 +62,58 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
   const [item, setItem] = React.useState<DetailItem | null>(null);
   const [pending, startTransition] = React.useTransition();
 
-  const open = React.useCallback((i: DetailItem) => setItem(i), []);
-  // Luk + genopfrisk listen. Vigtigt: editoren auto-gemmer, så en ændring –
-  // fx flytning mellem Privat og Storgaard via "Verden" – kan være gemt UDEN
-  // at man trykkede "Gem ændringer". Ved altid at genopfriske ved lukning
-  // afspejles flytningen straks, uanset om man lukkede med Luk, Escape eller
-  // klik udenfor (ellers blev opgaven stående i den gamle kategori på skærmen).
-  const close = React.useCallback(() => {
+  // Sand mens en sidste gemning kører ved lukning – blokerer for at lukke,
+  // indtil alt er gemt.
+  const [closing, setClosing] = React.useState(false);
+  // Editoren registrerer her en funktion, der gemmer dens nuværende felter
+  // FÆRDIGT og returnerer, om det lykkedes. Så kan vi vente på, at alt er
+  // gemt, FØR modalen lukkes – uanset luk-metode. (Opgave-editoren har ingen
+  // "Gem"-knap; den auto-gemmer løbende + en sidste gang her ved lukning.)
+  const flushRef = React.useRef<(() => Promise<boolean>) | null>(null);
+  const registerFlush = React.useCallback(
+    (fn: (() => Promise<boolean>) | null) => {
+      flushRef.current = fn;
+    },
+    [],
+  );
+
+  const open = React.useCallback((i: DetailItem) => {
+    setClosing(false);
+    setItem(i);
+  }, []);
+
+  // Luk med det samme + genopfrisk listen, så en ændring (fx flytning mellem
+  // Privat/Storgaard) afspejles straks. Bruges når der ALLEREDE er gemt.
+  const hardClose = React.useCallback(() => {
+    flushRef.current = null;
+    setClosing(false);
     setItem(null);
     router.refresh();
   }, [router]);
 
+  // Luk-FORSØG: gem evt. ikke-gemte ændringer færdigt, og luk først når det
+  // er lykkedes. Fejler gemningen, forbliver modalen åben, så intet tabes.
+  const requestClose = React.useCallback(async () => {
+    if (closing) return;
+    const flush = flushRef.current;
+    if (!flush) {
+      hardClose();
+      return;
+    }
+    setClosing(true);
+    const ok = await flush();
+    if (ok) hardClose();
+    else setClosing(false);
+  }, [closing, hardClose]);
+
   React.useEffect(() => {
     if (!item) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") void requestClose();
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [item, close]);
+  }, [item, requestClose]);
 
   return (
     <DetailContext.Provider value={{ open }}>
@@ -91,7 +126,9 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onMouseDown={(e) => e.target === e.currentTarget && close()}
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) void requestClose();
+            }}
           >
             <motion.div
               className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg"
@@ -105,18 +142,9 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                   key={item.task.id}
                   task={item.task}
                   pending={pending}
-                  onClose={close}
-                  onSave={(fields) =>
-                    startTransition(async () => {
-                      const res = await updateTask(item.task.id, fields);
-                      if (res?.error) toast.error(res.error);
-                      else {
-                        toast.success("Opgave gemt ✓");
-                        if (res?.warning) toast.warning(res.warning);
-                        close(); // close() genopfrisker selv listen
-                      }
-                    })
-                  }
+                  closing={closing}
+                  onClose={() => void requestClose()}
+                  registerFlush={registerFlush}
                   onMarkDone={(fields) =>
                     startTransition(async () => {
                       const res = await updateTask(item.task.id, { ...fields, status: "done" });
@@ -124,7 +152,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       else {
                         toast.success("Opgave markeret som færdig ✓");
                         if (res?.warning) toast.warning(res.warning);
-                        close(); // close() genopfrisker selv listen
+                        hardClose(); // allerede gemt → luk direkte
                       }
                     })
                   }
@@ -134,14 +162,14 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                   key={item.project.id}
                   project={item.project}
                   pending={pending}
-                  onClose={close}
+                  onClose={() => void requestClose()}
                   onSave={(notes) =>
                     startTransition(async () => {
                       const res = await updateProjectNotes(item.project.id, notes);
                       if (res?.error) toast.error(res.error);
                       else {
                         toast.success("Projekt gemt ✓");
-                        close(); // close() genopfrisker selv listen
+                        hardClose(); // allerede gemt → luk direkte
                       }
                     })
                   }
@@ -172,14 +200,19 @@ type TaskFields = {
 function TaskEditor({
   task,
   pending,
+  closing,
   onClose,
-  onSave,
+  registerFlush,
   onMarkDone,
 }: {
   task: Task;
   pending: boolean;
+  /** Sand mens en sidste gemning kører ved lukning (knapper deaktiveres). */
+  closing: boolean;
   onClose: () => void;
-  onSave: (fields: TaskFields) => void;
+  /** Registrér en "gem nuværende felter færdigt"-funktion hos provideren,
+   *  så lukningen kan vente på, at alt er gemt. */
+  registerFlush: (fn: (() => Promise<boolean>) | null) => void;
   onMarkDone: (fields: TaskFields) => void;
 }) {
   const [title, setTitle] = React.useState(task.title);
@@ -211,9 +244,8 @@ function TaskEditor({
     }
   }
 
-  // Samler editorens nuværende felter – bruges af BÅDE det manuelle
-  // Gem-knap, auto-gem og "Markér som færdig", så de tre altid gemmer
-  // præcis det samme, uanset hvilken vej brugeren gemmer ad.
+  // Samler editorens nuværende felter – bruges af auto-gem, flush (gem ved
+  // lukning) og "Markér som færdig", så de altid gemmer præcis det samme.
   function buildFields(): TaskFields {
     const deadlineIso = localInputToIso(deadline);
     return {
@@ -234,25 +266,40 @@ function TaskEditor({
   }
 
   // ─── Auto-gem ───────────────────────────────────────────────────────────
-  // Gemmer stille i baggrunden 1,2 sek. efter sidste ændring, så et
-  // uheldigt lukket faneblad/navigation væk fra siden ikke koster data,
-  // selvom brugeren aldrig selv trykker "Gem ændringer".
+  // Gemmer stille i baggrunden 1,2 sek. efter sidste ændring, så ændringer
+  // altid er gemt løbende – der er ingen "Gem"-knap længere.
   const [autoSaveState, setAutoSaveState] = React.useState<"idle" | "saving" | "saved" | "error">("idle");
   const lastSavedJson = React.useRef(JSON.stringify(buildFields()));
   const fieldsRef = React.useRef(buildFields());
   fieldsRef.current = buildFields();
 
-  function saveAll() {
-    if (!title.trim()) {
-      toast.error("Opgaven skal have et emne.");
-      return;
+  // Gem editorens nuværende felter FÆRDIGT (afventes). Kaldes af provideren
+  // ved lukning, så modalen først lukker, når ALT er gemt. Returnerer true,
+  // hvis der ikke er noget nyt at gemme, eller gemningen lykkedes.
+  const flush = React.useCallback(async (): Promise<boolean> => {
+    const fields = fieldsRef.current;
+    // Tom titel gemmes aldrig (ugyldig) – tillad luk; den ugyldige ændring
+    // kasseres bare, ligesom auto-gem heller aldrig gemte den.
+    if (!fields.title.trim()) return true;
+    if (JSON.stringify(fields) === lastSavedJson.current) return true; // intet nyt
+    setAutoSaveState("saving");
+    const res = await updateTask(task.id, fields);
+    if (res?.error) {
+      setAutoSaveState("error");
+      toast.error(res.error);
+      return false;
     }
-    const fields = buildFields();
-    // Markér som gemt med det samme, så unmount-flushet nedenfor ikke sender
-    // det samme igen som en overflødig dublet, når modalen lukker.
     lastSavedJson.current = JSON.stringify(fields);
-    onSave(fields);
-  }
+    setAutoSaveState("saved");
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id]);
+
+  // Registrér flush hos provideren, mens editoren er åben.
+  React.useEffect(() => {
+    registerFlush(flush);
+    return () => registerFlush(null);
+  }, [registerFlush, flush]);
 
   function handleMarkDone() {
     if (!title.trim()) {
@@ -304,7 +351,7 @@ function TaskEditor({
     idle: "",
     saving: "Gemmer …",
     saved: "Ændringer gemt automatisk",
-    error: "Kunne ikke auto-gemme – prøv Gem ændringer",
+    error: "Kunne ikke gemme – tjek din forbindelse",
   };
 
   return (
@@ -324,7 +371,8 @@ function TaskEditor({
         </div>
         <button
           onClick={onClose}
-          className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          disabled={pending || closing}
+          className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
           aria-label="Luk"
         >
           <X className="size-4" />
@@ -435,7 +483,7 @@ function TaskEditor({
               variant="outline"
               className="text-success border-success/40 hover:bg-success/10"
               onClick={handleMarkDone}
-              disabled={pending}
+              disabled={pending || closing}
             >
               <Check className="size-4" />
               Markér som færdig
@@ -447,12 +495,11 @@ function TaskEditor({
             </span>
           )}
         </div>
+        {/* Ingen "Gem"-knap – ændringer gemmes automatisk løbende, og "Luk"
+            venter på, at en sidste gemning er færdig, før den lukker. */}
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={onClose} disabled={pending}>
-            Luk
-          </Button>
-          <Button onClick={saveAll} disabled={pending}>
-            {pending ? "Gemmer …" : "Gem ændringer"}
+          <Button variant="outline" onClick={onClose} disabled={pending || closing}>
+            {closing ? "Gemmer …" : "Luk"}
           </Button>
         </div>
       </div>
