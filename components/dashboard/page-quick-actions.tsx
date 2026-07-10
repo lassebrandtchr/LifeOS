@@ -82,21 +82,41 @@ export function PageQuickActions({
     // opgaver), uden at navigere væk fra forsiden/Storgaard/Privat.
     setPending(action.label);
     (async () => {
-      const res = await quickCreateTask({
-        title: action.title,
-        workspace: action.workspace,
-        priority: action.priority,
-        status: action.status,
-        category: action.category ?? null,
-        note: action.note ?? null,
-      });
-      setPending(null);
-      if (res?.error || !res?.task) {
-        toast.error(res?.error ?? "Kunne ikke oprette opgaven.");
-        return;
+      try {
+        // Kapløb med en klient-timeout: hvis serveren skulle hænge (fx et
+        // langsomt auth-/DB-kald uden egen timeout), frigives knapperne alligevel
+        // efter 12 s i stedet for at være døde for evigt.
+        const res = await Promise.race([
+          quickCreateTask({
+            title: action.title,
+            workspace: action.workspace,
+            priority: action.priority,
+            status: action.status,
+            category: action.category ?? null,
+            note: action.note ?? null,
+          }),
+          new Promise<Awaited<ReturnType<typeof quickCreateTask>>>((resolve) =>
+            setTimeout(
+              () => resolve({ error: "Oprettelsen tog for lang tid – prøv igen." }),
+              12000,
+            ),
+          ),
+        ]);
+        if (res?.error || !res?.task) {
+          toast.error(res?.error ?? "Kunne ikke oprette opgaven.");
+          return;
+        }
+        // Åbn editoren FØR refresh, så den vises med det samme (router.refresh
+        // kører i en transition og må ikke udskyde/sluge åbningen).
+        open({ type: "task", task: res.task });
+        router.refresh();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Kunne ikke oprette opgaven.");
+      } finally {
+        // ALTID nulstil pending – ellers ville en enkelt fejlet oprettelse
+        // låse ALLE Hurtige handlinger-knapper (de er disabled mens pending).
+        setPending(null);
       }
-      router.refresh();
-      open({ type: "task", task: res.task });
     })();
   }
 

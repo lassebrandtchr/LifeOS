@@ -183,13 +183,15 @@ export async function quickCreateTask(params: {
   bucket?: Bucket;
   status?: Status;
 }): Promise<{ ok?: boolean; task?: Task; error?: string }> {
-  const auth = await getAuth();
-  if (!auth) return { error: NOT_READY };
-
   const title = params.title.trim();
   if (!title) return { error: "Opgaven mangler en titel." };
 
   try {
+    // getAuth() er inde i try, så et hængende/fejlende auth-kald returnerer en
+    // pæn fejl i stedet for at kaste (og efterlade UI'ets pending-lås hængende).
+    const auth = await getAuth();
+    if (!auth) return { error: NOT_READY };
+
     const { data, error } = await auth.supabase
       .from("tasks")
       .insert({
