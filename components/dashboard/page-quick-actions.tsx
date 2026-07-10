@@ -142,7 +142,7 @@ export function PageQuickActions({
               type="button"
               onClick={() => run(action)}
               disabled={Boolean(pending)}
-              className="quick-action-btn group relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-secondary/30 p-3 text-center transition-all duration-200 ease-out hover:-translate-y-1 disabled:opacity-60"
+              className="quick-action-btn group relative flex select-none flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border/60 bg-secondary/30 p-3 text-center transition-all duration-200 ease-out disabled:opacity-60"
               style={{ "--qa-color": action.color } as React.CSSProperties}
             >
               <span

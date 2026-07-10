@@ -444,6 +444,19 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Touch: fjern browserens ~300 ms dobbelttryk-zoom-forsinkelse på alt der
+     kan trykkes, så knapper (fx Hurtige handlinger) reagerer ØJEBLIKKELIGT på
+     mobil. Fjern samtidig det grå tryk-highlight-flash til fordel for vores
+     egne :active-stilarter. */
+  button,
+  a,
+  label,
+  summary,
+  [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -499,12 +512,24 @@
    pr. knap), og kun på den knap musen rammer (almindelig :hover, ikke
    group-hover, så nabo-knapperne aldrig reagerer på samme hover). */
 @utility quick-action-btn {
-  &:hover {
-    border-color: color-mix(in oklab, var(--qa-color) 55%, transparent);
-    background-color: color-mix(in oklab, var(--qa-color) 14%, transparent);
-    box-shadow:
-      0 0 0 1px color-mix(in oklab, var(--qa-color) 40%, transparent),
-      0 10px 26px -8px color-mix(in oklab, var(--qa-color) 55%, transparent);
+  /* Hover-løftet gælder KUN rigtige mus/pegeredskaber. På touch "hænger"
+     :hover fast efter et tryk (kræver et ekstra tryk for at slippe igen),
+     hvilket får knappen til at føles træg – derfor bag @media (hover: hover). */
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-0.25rem);
+      border-color: color-mix(in oklab, var(--qa-color) 55%, transparent);
+      background-color: color-mix(in oklab, var(--qa-color) 14%, transparent);
+      box-shadow:
+        0 0 0 1px color-mix(in oklab, var(--qa-color) 40%, transparent),
+        0 10px 26px -8px color-mix(in oklab, var(--qa-color) 55%, transparent);
+    }
+  }
+
+  /* Øjeblikkelig tryk-feedback (mus OG touch): knappen "trykkes ned" med det
+     samme, så et tryk altid føles registreret – også før handlingen når frem. */
+  &:active {
+    transform: scale(0.97);
   }
 }
 
