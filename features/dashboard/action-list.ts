@@ -2,6 +2,7 @@ import type { Priority, Workspace } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
 import type { MailMessage } from "@/features/integrations/types";
 import { stripHtmlInline } from "@/lib/text/strip-html";
+import { deriveTopic } from "@/features/tasks/topic";
 
 /**
  * Action-liste – bygger et prioriteret, kombineret overblik (Haster/Vigtigt/
@@ -256,9 +257,56 @@ export function buildActionList(
     });
   }
 
+  // ── Gruppering pr. emne (kategori) + import-særregel ──────────────────────
+  // Emne udledes samme sted som badgen i rækken (deriveTopic), så gruppering
+  // og visning altid er enige. Beregnes én gang pr. element.
+  const topicById = new Map<string, string | null>();
+  for (const i of items) {
+    topicById.set(
+      i.id,
+      deriveTopic(
+        i.title,
+        i.mailThread ? `${i.mailThread.from} ${i.mailThread.snippet}` : undefined,
+      ),
+    );
+  }
+
+  // Import behandles ALTID som "kan vente" og samles nederst i listen, uanset
+  // den oprindelige prioritet (Lasses ønske). Badgen følger med, fordi den
+  // læser item.priority.
+  const isImport = (i: ActionItem) => topicById.get(i.id) === "Import";
+  for (const i of items) if (isImport(i)) i.priority = "can_wait";
+
+  // Saml elementer med samme emne, så de står lige efter hinanden – men KUN
+  // inden for én prioritetsgruppe, så urgent→important→can_wait bevares.
+  // Elementer uden et udledt emne beholder deres oprindelige plads.
+  const clusterByTopic = (list: ActionItem[]): ActionItem[] => {
+    const order: string[] = [];
+    const buckets = new Map<string, ActionItem[]>();
+    list.forEach((it, idx) => {
+      const topic = topicById.get(it.id);
+      const key = topic ?? `__solo_${idx}`; // uden emne → unik nøgle = uændret plads
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(it);
+      else {
+        buckets.set(key, [it]);
+        order.push(key);
+      }
+    });
+    return order.flatMap((k) => buckets.get(k)!);
+  };
+
+  const rest = items.filter((i) => !isImport(i));
+  const importItems = items.filter(isImport); // alle "Import" = ét samlet emne
+
   return {
-    urgent: items.filter((i) => i.priority === "urgent"),
-    important: items.filter((i) => i.priority === "important"),
-    can_wait: items.filter((i) => i.priority === "can_wait"),
+    urgent: clusterByTopic(rest.filter((i) => i.priority === "urgent")),
+    important: clusterByTopic(rest.filter((i) => i.priority === "important")),
+    // Ikke-import "kan vente" (grupperet) først, derefter hele import-gruppen
+    // samlet nederst.
+    can_wait: [
+      ...clusterByTopic(rest.filter((i) => i.priority === "can_wait")),
+      ...importItems,
+    ],
   };
 }
