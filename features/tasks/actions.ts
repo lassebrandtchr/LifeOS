@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -81,20 +82,39 @@ async function raceTimeout<T>(promise: PromiseLike<T>, ms = 12_000): Promise<T |
 }
 
 /** Skriver en linje i aktivitetsloggen (best effort – fejler aldrig hårdt, og blokerer aldrig). */
-async function logActivity(
+function logActivity(
   auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
   taskId: string | null,
   type: string,
   detail: Record<string, unknown>,
 ) {
-  await withTimeout(
-    auth.supabase.from("task_activity").insert({
-      user_id: auth.userId,
-      task_id: taskId,
-      type,
-      detail,
-    }),
-  );
+  // Aktivitetsloggen er "best effort" og må ALDRIG forsinke selve handlingen.
+  // Den køres derfor i BAGGRUNDEN med after() (efter svaret er sendt), så en
+  // langsom/hængende task_activity-insert ikke gør oprettelse/gemning langsom.
+  // (Det var netop 5s-ventetiden her – gange antal logninger – der kunne
+  // skubbe fx "Import af bil"-oprettelsen over klient-timeouten.)
+  after(async () => {
+    await withTimeout(
+      auth.supabase.from("task_activity").insert({
+        user_id: auth.userId,
+        task_id: taskId,
+        type,
+        detail,
+      }),
+    );
+  });
+}
+
+/** Som logActivity: gemmer en linje i task_history i BAGGRUNDEN (blokerer aldrig). */
+function logHistory(
+  auth: NonNullable<Awaited<ReturnType<typeof getAuth>>>,
+  row: { task_id: string; title?: string; action: string },
+) {
+  after(async () => {
+    await withTimeout(
+      auth.supabase.from("task_history").insert({ user_id: auth.userId, ...row }),
+    );
+  });
 }
 
 // ───────────────────────────── Opret opgave ─────────────────────────────
@@ -157,7 +177,7 @@ export async function createTask(
       .single();
 
     if (error) return { error: error.message };
-    await logActivity(auth, data.id, "created", { title });
+    logActivity(auth, data.id, "created", { title });
     revalidatePath("/opgaver");
     revalidatePath("/");
     revalidatePath("/storgaard-biler");
@@ -209,7 +229,7 @@ export async function quickCreateTask(params: {
       .single();
 
     if (error) return { error: error.message };
-    await logActivity(auth, data.id, "created", { title });
+    logActivity(auth, data.id, "created", { title });
     revalidatePath("/opgaver");
     revalidatePath("/");
     revalidatePath("/storgaard-biler");
@@ -229,7 +249,7 @@ export async function moveTask(id: string, bucket: Bucket, position: number) {
       .from("tasks")
       .update({ bucket, position })
       .eq("id", id);
-    await logActivity(auth, id, "moved", { bucket });
+    logActivity(auth, id, "moved", { bucket });
     revalidatePath("/opgaver");
   } catch {
     // ignoreres – UI viser allerede optimistisk flytning
@@ -250,16 +270,9 @@ export async function setTaskStatus(id: string, status: Status) {
       .single();
 
     if (isDone && data) {
-      await withTimeout(
-        auth.supabase.from("task_history").insert({
-          user_id: auth.userId,
-          task_id: id,
-          title: data.title,
-          action: "completed",
-        }),
-      );
+      logHistory(auth, { task_id: id, title: data.title, action: "completed" });
     }
-    await logActivity(
+    logActivity(
       auth,
       id,
       status === "done" ? "completed" : status === "archived" ? "archived" : "edited",
@@ -462,16 +475,13 @@ export async function updateTask(
     if (error) return { error: error.message };
 
     if (fields.status === "done") {
-      await withTimeout(
-        auth.supabase.from("task_history").insert({
-          user_id: auth.userId,
-          task_id: id,
-          title: (update.title as string) ?? undefined,
-          action: "completed",
-        }),
-      );
+      logHistory(auth, {
+        task_id: id,
+        title: (update.title as string) ?? undefined,
+        action: "completed",
+      });
     }
-    await logActivity(auth, id, "edited", {
+    logActivity(auth, id, "edited", {
       title: update.title as string | undefined,
     });
     revalidatePath("/opgaver");
