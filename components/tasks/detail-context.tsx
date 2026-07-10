@@ -63,7 +63,15 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
   const [pending, startTransition] = React.useTransition();
 
   const open = React.useCallback((i: DetailItem) => setItem(i), []);
-  const close = React.useCallback(() => setItem(null), []);
+  // Luk + genopfrisk listen. Vigtigt: editoren auto-gemmer, så en ændring –
+  // fx flytning mellem Privat og Storgaard via "Verden" – kan være gemt UDEN
+  // at man trykkede "Gem ændringer". Ved altid at genopfriske ved lukning
+  // afspejles flytningen straks, uanset om man lukkede med Luk, Escape eller
+  // klik udenfor (ellers blev opgaven stående i den gamle kategori på skærmen).
+  const close = React.useCallback(() => {
+    setItem(null);
+    router.refresh();
+  }, [router]);
 
   React.useEffect(() => {
     if (!item) return;
@@ -105,8 +113,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       else {
                         toast.success("Opgave gemt ✓");
                         if (res?.warning) toast.warning(res.warning);
-                        close();
-                        router.refresh();
+                        close(); // close() genopfrisker selv listen
                       }
                     })
                   }
@@ -117,8 +124,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       else {
                         toast.success("Opgave markeret som færdig ✓");
                         if (res?.warning) toast.warning(res.warning);
-                        close();
-                        router.refresh();
+                        close(); // close() genopfrisker selv listen
                       }
                     })
                   }
@@ -135,8 +141,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                       if (res?.error) toast.error(res.error);
                       else {
                         toast.success("Projekt gemt ✓");
-                        close();
-                        router.refresh();
+                        close(); // close() genopfrisker selv listen
                       }
                     })
                   }
