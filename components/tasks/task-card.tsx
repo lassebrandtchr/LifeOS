@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, Calendar, GripVertical, StickyNote, Car } from "lucide-react";
+import { Check, Calendar, GripVertical, StickyNote, Car, UserRound } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { priorities, categoryById, statuses } from "@/features/tasks/constants";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { summarizeTradeIn } from "@/features/tasks/trade-in";
+import { customerLabel } from "@/features/tasks/customer";
 import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Task } from "@/features/tasks/types";
 
@@ -43,6 +44,7 @@ export function TaskCard({
   const deadline = formatDeadline(task.deadline);
   const excerpt = noteExcerpt(task.notes);
   const tradeIn = summarizeTradeIn(task.trade_in);
+  const customer = customerLabel(task.customer);
   const { open } = useOpenDetail();
 
   return (
@@ -94,6 +96,15 @@ export function TaskCard({
             <span className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-foreground">
               <Car className="size-3 shrink-0" />
               {tradeIn}
+            </span>
+          )}
+          {customer && (
+            <span
+              title="Kundeinfo tilføjet"
+              className="inline-flex items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+            >
+              <UserRound className="size-3 shrink-0" />
+              {customer}
             </span>
           )}
         </div>

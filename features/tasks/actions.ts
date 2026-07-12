@@ -9,7 +9,8 @@ import { searchAll, type TaskSearchStatus } from "@/features/tasks/queries";
 import { parseTaskInput } from "@/features/tasks/parse";
 import { deriveBucketFromDeadline as deriveBucket } from "@/features/tasks/bucket";
 import type { Bucket, Priority, Status, Workspace } from "@/features/tasks/constants";
-import type { Task } from "@/features/tasks/types";
+import type { Task, Customer } from "@/features/tasks/types";
+import { normalizeCustomer } from "@/features/tasks/customer";
 
 /** Global søgning (kaldes fra topbarens søgefelt). */
 export async function searchAction(query: string, taskStatus: TaskSearchStatus = "active") {
@@ -401,6 +402,7 @@ export async function updateTask(
     reminder_at?: string | null; // ISO eller null – uafhængig af deadline
     notes?: string | null;
     trade_in?: string | null;
+    customer?: Customer | null;
   },
 ): Promise<ActionState> {
   const auth = await getAuth();
@@ -420,6 +422,7 @@ export async function updateTask(
   if (fields.category !== undefined) update.category = fields.category || null;
   if (fields.notes !== undefined) update.notes = fields.notes?.trim() || null;
   if (fields.trade_in !== undefined) update.trade_in = fields.trade_in?.trim() || null;
+  if (fields.customer !== undefined) update.customer = normalizeCustomer(fields.customer);
   if (fields.deadline !== undefined) update.deadline = fields.deadline || null;
   if (fields.reminder_at !== undefined) update.reminder_at = fields.reminder_at || null;
   if (fields.status !== undefined) {
@@ -432,45 +435,49 @@ export async function updateTask(
     // Selve opdateringen kappes med en timeout: hvis Supabase ikke svarer,
     // returnerer vi en venlig fejl i stedet for at lade kaldet hænge – ellers
     // ville modalens "Gem"/"Markér som færdig"-knap sidde fast på "Gemmer …".
-    const first = await raceTimeout(
+    // Byg altid forespørgslen på ny, så en efterfølgende retry (efter vi har
+    // fjernet en manglende kolonne fra `update`) rammer de opdaterede felter.
+    const runUpdate = () =>
       auth.supabase
         .from("tasks")
         .update(update)
         .eq("id", id)
-        .eq("user_id", auth.userId),
-    );
+        .eq("user_id", auth.userId);
+
+    const first = await raceTimeout(runUpdate());
     if (first === TIMED_OUT) return { error: BACKEND_TIMEOUT };
     let { error } = first;
 
-    // Migration 0011 (kolonnen "trade_in") er måske ikke kørt i Supabase
-    // endnu – lad ikke det blokere resten af opgaven (titel/deadline/status
-    // osv.) fra at blive gemt. Prøv igen uden feltet, og fortæl hvorfor.
-    // Postgres selv fejler med "42703"; PostgREST's skema-cache (langt
-    // hyppigere set i praksis) fejler i stedet med koden "PGRST204" og en
-    // besked som "Could not find the 'trade_in' column ... in the schema
-    // cache" – begge skal fange faldet tilbage til retry.
-    const missingTradeIn =
-      "trade_in" in update &&
-      (error?.code === "42703" ||
-        error?.code === "PGRST204" ||
-        /trade_in/i.test(error?.message ?? ""));
-    if (missingTradeIn) {
-      delete update.trade_in;
-      const retry = await raceTimeout(
-        auth.supabase
-          .from("tasks")
-          .update(update)
-          .eq("id", id)
-          .eq("user_id", auth.userId),
+    // Valgfrie kolonner ("trade_in" fra migration 0011, "customer" for
+    // kundeinfo) er måske ikke kørt i Supabase endnu – lad ikke det blokere
+    // resten af opgaven (titel/deadline/status osv.) fra at blive gemt. Fjern
+    // netop den kolonne Supabase klager over, og prøv igen. Postgres fejler
+    // med "42703"; PostgREST's skema-cache (hyppigst i praksis) med "PGRST204"
+    // og en besked som "Could not find the 'customer' column ... in the
+    // schema cache" – begge skal fange faldet tilbage til retry.
+    const OPTIONAL_COLUMNS = ["customer", "trade_in"] as const;
+    let strippedColumn: string | null = null;
+    for (let i = 0; i < OPTIONAL_COLUMNS.length && error; i++) {
+      const missing = OPTIONAL_COLUMNS.find(
+        (col) =>
+          col in update &&
+          (error!.code === "42703" ||
+            error!.code === "PGRST204" ||
+            new RegExp(col, "i").test(error!.message ?? "")),
       );
+      if (!missing) break;
+      delete update[missing];
+      strippedColumn = missing;
+      const retry = await raceTimeout(runUpdate());
       if (retry === TIMED_OUT) return { error: BACKEND_TIMEOUT };
       error = retry.error;
-      if (!error) {
-        return {
-          ok: true,
-          warning: "Byttebil blev ikke gemt – kør migration 0011 i Supabase.",
-        };
-      }
+    }
+    if (!error && strippedColumn) {
+      return {
+        ok: true,
+        warning:
+          "Nogle nye felter blev ikke gemt – kør de nyeste Supabase-migrationer.",
+      };
     }
     if (error) return { error: error.message };
 

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell, Check } from "lucide-react";
+import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell, Check, UserRound, Phone, Mail, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -23,7 +23,8 @@ import { deriveBucketFromDeadline } from "@/features/tasks/bucket";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
 import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
-import type { Task, Project } from "@/features/tasks/types";
+import { normalizeCustomer } from "@/features/tasks/customer";
+import type { Task, Project, Customer } from "@/features/tasks/types";
 
 export type DetailItem =
   | { type: "task"; task: Task }
@@ -37,6 +38,9 @@ export const useOpenDetail = () => React.useContext(DetailContext);
 
 const selectClass =
   "h-10 w-full rounded-lg border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/40";
+
+const customerInputClass =
+  "w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 focus:border-ring focus:ring-2 focus:ring-ring/30";
 
 /** ISO → værdi til <input type="datetime-local"> (lokal tid). */
 function isoToLocalInput(iso: string | null): string {
@@ -195,6 +199,7 @@ type TaskFields = {
   reminder_at: string | null;
   notes: string | null;
   trade_in: string | null;
+  customer: Customer | null;
 };
 
 function TaskEditor({
@@ -226,6 +231,11 @@ function TaskEditor({
   const [reminderAt, setReminderAt] = React.useState(isoToLocalInput(task.reminder_at));
   const [notes, setNotes] = React.useState(task.notes ?? "");
   const [tradeIn, setTradeIn] = React.useState(task.trade_in ?? "");
+  // Kundeinfo – hvert felt for sig (controlled), samles til ét objekt i buildFields.
+  const [custName, setCustName] = React.useState(task.customer?.name ?? "");
+  const [custPhone, setCustPhone] = React.useState(task.customer?.phone ?? "");
+  const [custEmail, setCustEmail] = React.useState(task.customer?.email ?? "");
+  const [custAddress, setCustAddress] = React.useState(task.customer?.address ?? "");
 
   // Salg-opgaver (Bud på bil / Import af bil) bruger Note langt mere end
   // Beskrivelse, og har brug for et separat Byttebil-felt – så her skjules
@@ -262,6 +272,12 @@ function TaskEditor({
       reminder_at: localInputToIso(reminderAt),
       notes: notes.trim() || null,
       trade_in: tradeIn.trim() || null,
+      customer: normalizeCustomer({
+        name: custName,
+        phone: custPhone,
+        email: custEmail,
+        address: custAddress,
+      }),
     };
   }
 
@@ -332,7 +348,7 @@ function TaskEditor({
 
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, description, workspace, priority, category, deadline, reminderAt, notes, tradeIn]);
+  }, [title, description, workspace, priority, category, deadline, reminderAt, notes, tradeIn, custName, custPhone, custEmail, custAddress]);
 
   // Gem med det samme ved unmount (Luk, Escape, klik udenfor, eller skift
   // til en anden opgave), så de sidste ~1,2 sek. af ændringer aldrig når at
@@ -470,6 +486,56 @@ function TaskEditor({
             />
           </Field>
         )}
+
+        {/* Kunde – valgfri kontaktinfo. Udfyldes ét eller flere felter, vises
+            en kunde-markør på opgaven i Action-listen og på opgavekortet. */}
+        <Field label="Kunde" icon={UserRound}>
+          <div className="space-y-2 rounded-xl border border-border/60 bg-secondary/20 p-3">
+            <input
+              value={custName}
+              onChange={(e) => setCustName(e.target.value)}
+              placeholder="Navn"
+              autoComplete="off"
+              className={customerInputClass}
+            />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  value={custPhone}
+                  onChange={(e) => setCustPhone(e.target.value)}
+                  placeholder="Telefon"
+                  autoComplete="off"
+                  className={cn(customerInputClass, "pl-9")}
+                />
+              </div>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                <input
+                  type="email"
+                  inputMode="email"
+                  value={custEmail}
+                  onChange={(e) => setCustEmail(e.target.value)}
+                  placeholder="E-mail"
+                  autoComplete="off"
+                  className={cn(customerInputClass, "pl-9")}
+                />
+              </div>
+            </div>
+            <div className="relative">
+              <MapPin className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+              <input
+                value={custAddress}
+                onChange={(e) => setCustAddress(e.target.value)}
+                placeholder="Adresse"
+                autoComplete="off"
+                className={cn(customerInputClass, "pl-9")}
+              />
+            </div>
+          </div>
+        </Field>
 
         {/* Vedhæftninger */}
         <TaskAttachments taskId={task.id} />

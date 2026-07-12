@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight, CalendarClock, Bell } from "lucide-react";
+import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight, CalendarClock, Bell, UserRound, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { useOpenDetail } from "@/components/tasks/detail-context";
 import { setTaskStatus, quickCreateTask } from "@/features/tasks/actions";
 import { syncEverythingNow } from "@/features/integrations/actions";
 import { summarizeTradeIn } from "@/features/tasks/trade-in";
+import { normalizeCustomer } from "@/features/tasks/customer";
 import { deriveTopic, topicColor } from "@/features/tasks/topic";
 import { priorities } from "@/features/tasks/constants";
 import type { Workspace, Priority } from "@/features/tasks/constants";
@@ -160,6 +161,9 @@ function ActionRow({
 
   const clickable = Boolean(item.task);
   const tradeIn = summarizeTradeIn(item.task?.trade_in);
+  // Eksplicit kundeinfo på opgaven (adskilt fra den heuristisk udtrukne
+  // item.contact fra mail). Findes den, vises en tydelig kunde-markør.
+  const customer = normalizeCustomer(item.task?.customer);
   // For mail-elementer får emne-udledningen også afsender + uddrag som
   // signal, så badgen kan læse "hvad handler mailen om" – ikke kun emnefeltet.
   const topic = deriveTopic(
@@ -232,6 +236,16 @@ function ActionRow({
               {topic}
             </span>
           )}
+          {/* Kunde-markør: gør det let at se ved et blik, hvilke opgaver der
+              har tilknyttet kundeinfo. */}
+          {customer && (
+            <span
+              title="Kundeinfo tilføjet"
+              className="mt-0.5 inline-flex shrink-0 items-center rounded-md border border-primary/40 bg-primary/10 px-1 py-0.5 text-primary"
+            >
+              <UserRound className="size-3" />
+            </span>
+          )}
           <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
         </div>
         {item.context && (
@@ -241,14 +255,26 @@ function ActionRow({
           <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             {item.sourceLabel}
           </span>
-          {item.contact?.phone && (
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Phone className="size-3" /> {item.contact.phone}
+          {/* Eksplicit kundeinfo har forrang – den heuristisk udtrukne
+              item.contact vises kun, når opgaven ikke selv har kundeinfo. */}
+          {customer?.name && (
+            <span className="inline-flex items-center gap-1 text-xs font-medium text-foreground">
+              <UserRound className="size-3" /> {customer.name}
             </span>
           )}
-          {item.contact?.email && (
+          {(customer?.phone ?? (!customer ? item.contact?.phone : undefined)) && (
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Mail className="size-3" /> {item.contact.email}
+              <Phone className="size-3" /> {customer?.phone ?? item.contact?.phone}
+            </span>
+          )}
+          {(customer?.email ?? (!customer ? item.contact?.email : undefined)) && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <Mail className="size-3" /> {customer?.email ?? item.contact?.email}
+            </span>
+          )}
+          {customer?.address && (
+            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+              <MapPin className="size-3" /> {customer.address}
             </span>
           )}
           {tradeIn && (

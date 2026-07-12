@@ -1,5 +1,14 @@
 import type { Priority, Status, Bucket, Workspace } from "@/features/tasks/constants";
 
+/** Kundeinfo knyttet til en opgave (fx en bilhandel). Gemmes som JSONB i
+ *  tasks.customer – alle felter valgfri, tomme felter udelades. */
+export type Customer = {
+  name?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+};
+
 /** En opgave, som den ligger i databasen / bruges i UI'et. */
 export type Task = {
   id: string;
@@ -18,6 +27,7 @@ export type Task = {
   reminder_at: string | null;
   project_id: string | null;
   campaign_id: string | null;
+  customer: Customer | null;
   tags: string[];
   completed_at: string | null;
   created_at: string;
