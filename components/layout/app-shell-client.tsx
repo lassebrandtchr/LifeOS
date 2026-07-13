@@ -75,8 +75,13 @@ function ShellLayout({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} notifications={notifications} />
-        {/* pb-24 giver plads til mobilmenuen i bunden */}
-        <main className="flex-1 px-4 pb-24 pt-6 lg:px-8 lg:pb-10">{children}</main>
+        {/* Plads til mobilmenuen i bunden: dens højde (min. 4rem) + luft +
+            telefonens safe-area (hjemme-indikatoren). Var før en fast pb-24,
+            som ikke tog højde for safe-area og derfor kunne lade indholdet
+            gemme sig bag baren på iPhone. */}
+        <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 lg:px-8 lg:pb-10">
+          {children}
+        </main>
       </div>
 
       <MobileNav />
