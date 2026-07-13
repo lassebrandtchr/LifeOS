@@ -3,12 +3,17 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { FileText, X, Copy, Check, Eraser } from "lucide-react";
+import { FileText, X, Copy, Check, Eraser, History, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { getScratchpad, saveScratchpad } from "@/features/scratchpad/actions";
+import {
+  getScratchpad,
+  saveScratchpad,
+  getScratchpadVersions,
+} from "@/features/scratchpad/actions";
 import type { ScratchpadRead } from "@/features/scratchpad/actions";
+import { VersionHistory, type VersionEntry } from "@/components/ui/version-history";
 import { safeGetItem, safeSetItem } from "@/lib/safe-storage";
 
 /**
@@ -45,6 +50,39 @@ export function TextScratchpad() {
   // lokale ændringer, så en genhentning aldrig overskriver noget nyskrevet.
   const syncedRef = React.useRef<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Historik-visning ("gå tilbage til en tidligere udgave").
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [versions, setVersions] = React.useState<VersionEntry[]>([]);
+  const [versionText, setVersionText] = React.useState<Map<string, string>>(new Map());
+  const [loadingVersions, setLoadingVersions] = React.useState(false);
+
+  async function openHistory() {
+    setShowHistory(true);
+    setLoadingVersions(true);
+    try {
+      const list = await getScratchpadVersions();
+      setVersions(
+        list.map((v) => ({ id: v.id, created_at: v.created_at, preview: v.content })),
+      );
+      setVersionText(new Map(list.map((v) => [v.id, v.content])));
+    } catch {
+      toast.error("Kunne ikke hente tidligere udgaver.");
+    } finally {
+      setLoadingVersions(false);
+    }
+  }
+
+  // Gendan = sæt teksten tilbage. Den NUVÆRENDE tekst gemmes automatisk som en
+  // ny udgave af databasens trigger, så en gendannelse aldrig kan miste noget
+  // – man kan altså også fortryde en gendannelse.
+  function restoreVersion(id: string) {
+    const content = versionText.get(id);
+    if (content === undefined) return;
+    setText(content);
+    setShowHistory(false);
+    toast.success("Tidligere udgave gendannet ✓");
+  }
 
   // createPortal kræver document – slå til efter mount (undgår SSR-fejl).
   React.useEffect(() => setMounted(true), []);
@@ -249,7 +287,7 @@ export function TextScratchpad() {
                         <FileText className="size-4" />
                       </span>
                       <h2 className="text-base font-semibold leading-tight">
-                        Tekst med FED skrift
+                        {showHistory ? "Tidligere udgaver" : "Tekst med FED skrift"}
                       </h2>
                     </div>
                     <button
@@ -261,49 +299,83 @@ export function TextScratchpad() {
                     </button>
                   </div>
 
-                  {/* Tekstboks – farves efter det valgte tema (se komponent-doc). */}
                   <div className="flex-1 overflow-y-auto px-5 py-4">
-                    <textarea
-                      ref={textareaRef}
-                      value={text}
-                      onChange={(e) => setText(e.target.value)}
-                      placeholder="Skriv eller indsæt din tekst her …"
-                      spellCheck={false}
-                      className="min-h-[55vh] w-full resize-y rounded-xl border px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring/40"
-                      style={{
-                        backgroundColor:
-                          "color-mix(in oklab, var(--primary) 8%, var(--card))",
-                        borderColor:
-                          "color-mix(in oklab, var(--primary) 40%, var(--border))",
-                        color: "var(--foreground)",
-                      }}
-                    />
+                    {showHistory ? (
+                      <VersionHistory
+                        versions={versions}
+                        loading={loadingVersions}
+                        restoringId={null}
+                        onRestore={restoreVersion}
+                        emptyText="Ingen tidligere udgaver endnu. Fra nu af gemmes en kopi, hver gang du ændrer teksten."
+                      />
+                    ) : (
+                      /* Tekstboks – farves efter det valgte tema (se komponent-doc). */
+                      <textarea
+                        ref={textareaRef}
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        placeholder="Skriv eller indsæt din tekst her …"
+                        spellCheck={false}
+                        className="min-h-[55vh] w-full resize-y rounded-xl border px-4 py-3 text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground/60 focus:ring-2 focus:ring-ring/40"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in oklab, var(--primary) 8%, var(--card))",
+                          borderColor:
+                            "color-mix(in oklab, var(--primary) 40%, var(--border))",
+                          color: "var(--foreground)",
+                        }}
+                      />
+                    )}
                   </div>
 
                   {/* Footer */}
                   <div className="flex shrink-0 items-center justify-between gap-2 border-t border-border/60 px-5 py-3">
-                    <Button
-                      variant="ghost"
-                      onClick={() => setText("")}
-                      disabled={!text}
-                      className="text-muted-foreground"
-                    >
-                      <Eraser className="size-4" />
-                      Ryd
-                    </Button>
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={() => setOpen(false)}>
-                        Luk
+                    {showHistory ? (
+                      <Button
+                        variant="ghost"
+                        onClick={() => setShowHistory(false)}
+                        className="text-muted-foreground"
+                      >
+                        <ArrowLeft className="size-4" />
+                        Tilbage til teksten
                       </Button>
-                      <Button onClick={copyAll}>
-                        {copied ? (
-                          <Check className="size-4" />
-                        ) : (
-                          <Copy className="size-4" />
-                        )}
-                        {copied ? "Kopieret" : "Kopiér alt"}
-                      </Button>
-                    </div>
+                    ) : (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          onClick={() => void openHistory()}
+                          className="text-muted-foreground"
+                        >
+                          <History className="size-4" />
+                          Historik
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => setText("")}
+                          disabled={!text}
+                          className="text-muted-foreground"
+                        >
+                          <Eraser className="size-4" />
+                          Ryd
+                        </Button>
+                      </div>
+                    )}
+
+                    {!showHistory && (
+                      <div className="flex gap-2">
+                        <Button variant="outline" onClick={() => setOpen(false)}>
+                          Luk
+                        </Button>
+                        <Button onClick={copyAll}>
+                          {copied ? (
+                            <Check className="size-4" />
+                          ) : (
+                            <Copy className="size-4" />
+                          )}
+                          {copied ? "Kopieret" : "Kopiér alt"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               </motion.div>

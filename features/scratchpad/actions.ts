@@ -57,6 +57,53 @@ export async function getScratchpad(): Promise<ScratchpadRead> {
   }
 }
 
+/** En tidligere udgave af notesblokken. */
+export type ScratchpadVersion = {
+  id: string;
+  content: string;
+  created_at: string;
+};
+
+/**
+ * Tidligere udgaver af notesblokken (nyeste først).
+ *
+ * Kopierne laves AUTOMATISK af en database-trigger (migration 0015): hver gang
+ * teksten ændres, gemmes den FORRIGE udgave. Så kan man altid hente tekst
+ * tilbage, man kom til at slette.
+ *
+ * DEFENSIVT: er migration 0015 ikke kørt, findes tabellen ikke → tom liste.
+ */
+export async function getScratchpadVersions(): Promise<ScratchpadVersion[]> {
+  if (!isSupabaseConfigured()) return [];
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from("scratchpad_versions")
+      .select("id, content, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error || !data) return [];
+
+    // Auto-gem laver mange næsten-ens udgaver mens man skriver. Vis kun de
+    // UNIKKE, så listen er til at overskue (nyeste af hver beholdes).
+    const seen = new Set<string>();
+    return (data as ScratchpadVersion[]).filter((v) => {
+      if (seen.has(v.content)) return false;
+      seen.add(v.content);
+      return true;
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** Gem brugerens notesblok. Stille fejl – teksten ligger stadig lokalt. */
 export async function saveScratchpad(
   content: string,

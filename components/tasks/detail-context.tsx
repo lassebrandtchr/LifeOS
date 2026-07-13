@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell, Check, UserRound, Phone, Mail, MapPin } from "lucide-react";
+import { X, StickyNote, FolderKanban, CheckSquare, Type, Car, Bell, Check, UserRound, Phone, Mail, MapPin, History, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -24,6 +24,9 @@ import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
 import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
 import { normalizeCustomer } from "@/features/tasks/customer";
+import { getTaskVersions, restoreTaskVersion } from "@/features/tasks/history-actions";
+import { VersionHistory, type VersionEntry } from "@/components/ui/version-history";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Task, Project, Customer } from "@/features/tasks/types";
 
 export type DetailItem =
@@ -198,6 +201,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                   closing={closing}
                   onClose={() => void requestClose()}
                   registerFlush={registerFlush}
+                  onRestored={hardClose}
                   onMarkDone={(fields) =>
                     startTransition(async () => {
                       // Timeout + try/catch: hænger databasen, ville `pending`
@@ -296,6 +300,7 @@ function TaskEditor({
   onClose,
   registerFlush,
   onMarkDone,
+  onRestored,
 }: {
   task: Task;
   pending: boolean;
@@ -306,6 +311,8 @@ function TaskEditor({
    *  så lukningen kan vente på, at alt er gemt. */
   registerFlush: (fn: (() => Promise<boolean>) | null) => void;
   onMarkDone: (fields: TaskFields) => void;
+  /** Kaldes efter en gendannelse – luk uden at gemme de gamle felter igen. */
+  onRestored: () => void;
 }) {
   const [title, setTitle] = React.useState(task.title);
   const [description, setDescription] = React.useState(task.description ?? "");
@@ -323,6 +330,62 @@ function TaskEditor({
   const [custPhone, setCustPhone] = React.useState(task.customer?.phone ?? "");
   const [custEmail, setCustEmail] = React.useState(task.customer?.email ?? "");
   const [custAddress, setCustAddress] = React.useState(task.customer?.address ?? "");
+
+  // ─── Historik ("gå tilbage til en tidligere udgave") ─────────────────────
+  // Kopierne laves af en database-trigger, så der ALTID gemmes en udgave, når
+  // opgaven ændres – uanset hvor i appen ændringen skete.
+  const [showHistory, setShowHistory] = React.useState(false);
+  const [versions, setVersions] = React.useState<VersionEntry[]>([]);
+  const [loadingVersions, setLoadingVersions] = React.useState(false);
+  const [restoringId, setRestoringId] = React.useState<string | null>(null);
+
+  // Efter en gendannelse indeholder editorens felter stadig de GAMLE værdier.
+  // Uden dette flag ville auto-gem / gem-ved-lukning skrive dem tilbage igen og
+  // dermed annullere gendannelsen med det samme. Flaget slår al gemning fra.
+  const restoredRef = React.useRef(false);
+
+  async function openHistory() {
+    setShowHistory(true);
+    setLoadingVersions(true);
+    try {
+      const list = await getTaskVersions(task.id);
+      setVersions(
+        list.map((v) => ({
+          id: v.id,
+          created_at: v.created_at,
+          // Vis emne + starten af noten, så udgaverne er til at kende fra hinanden.
+          preview: [v.title, stripHtmlInline(v.notes)].filter(Boolean).join(" — "),
+        })),
+      );
+    } catch {
+      toast.error("Kunne ikke hente tidligere udgaver.");
+    } finally {
+      setLoadingVersions(false);
+    }
+  }
+
+  // Gendan. Den NUVÆRENDE udgave gemmes automatisk som en ny version af
+  // triggeren, så en gendannelse aldrig kan miste noget – man kan altså også
+  // fortryde en gendannelse.
+  async function restoreVersion(id: string) {
+    setRestoringId(id);
+    try {
+      const res = await restoreTaskVersion(task.id, id);
+      if (res?.error) {
+        toast.error(res.error);
+        return;
+      }
+      // Slå gemning fra FØR vi lukker, så editorens gamle felter ikke bliver
+      // skrevet tilbage oven i den udgave, vi lige har gendannet.
+      restoredRef.current = true;
+      toast.success("Tidligere udgave gendannet ✓");
+      onRestored(); // luk + genindlæs, så editoren viser den gendannede udgave
+    } catch {
+      toast.error("Kunne ikke gendanne – tjek din forbindelse.");
+    } finally {
+      setRestoringId(null);
+    }
+  }
 
   // Salg-opgaver (Bud på bil / Import af bil) bruger Note langt mere end
   // Beskrivelse, og har brug for et separat Byttebil-felt – så her skjules
@@ -380,6 +443,9 @@ function TaskEditor({
   // ved lukning, så modalen først lukker, når ALT er gemt. Returnerer true,
   // hvis der ikke er noget nyt at gemme, eller gemningen lykkedes.
   const flush = React.useCallback(async (): Promise<boolean> => {
+    // Er der lige gendannet en tidligere udgave, må vi IKKE gemme editorens
+    // (gamle) felter oveni – det ville annullere gendannelsen.
+    if (restoredRef.current) return true;
     const fields = fieldsRef.current;
     // Tom titel gemmes aldrig (ugyldig) – tillad luk; den ugyldige ændring
     // kasseres bare, ligesom auto-gem heller aldrig gemte den.
@@ -425,6 +491,7 @@ function TaskEditor({
   }
 
   React.useEffect(() => {
+    if (restoredRef.current) return; // gendannet → gem aldrig de gamle felter
     if (!title.trim()) return; // vent til opgaven har et emne
     const json = JSON.stringify(fieldsRef.current);
     if (json === lastSavedJson.current) return; // ingen reelle ændringer
@@ -457,6 +524,7 @@ function TaskEditor({
   // gå tabt i debounce-vinduet ovenfor.
   React.useEffect(() => {
     return () => {
+      if (restoredRef.current) return; // gendannet → gem aldrig de gamle felter
       const fields = fieldsRef.current;
       if (fields.title.trim() && JSON.stringify(fields) !== lastSavedJson.current) {
         // .catch(): komponenten er ved at forsvinde – en fejl her kan ikke
@@ -483,7 +551,9 @@ function TaskEditor({
             <CheckSquare className="size-4" />
           </span>
           <div>
-            <h2 className="text-base font-semibold leading-tight">Rediger opgave</h2>
+            <h2 className="text-base font-semibold leading-tight">
+              {showHistory ? "Tidligere udgaver" : "Rediger opgave"}
+            </h2>
             <span className="text-xs text-muted-foreground">
               {workspaces[workspace]?.label}
             </span>
@@ -503,6 +573,16 @@ function TaskEditor({
 
       {/* Indhold (scroller kun hvis nødvendigt) */}
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+        {showHistory ? (
+          <VersionHistory
+            versions={versions}
+            loading={loadingVersions}
+            restoringId={restoringId}
+            onRestore={(id) => void restoreVersion(id)}
+            emptyText="Ingen tidligere udgaver endnu. Fra nu af gemmes en kopi, hver gang opgaven ændres."
+          />
+        ) : (
+          <>
         {/* Emne – vokser nedad ligesom Note, i stedet for at klippe lange titler af. */}
         <Field label="Emne" icon={Type}>
           <AutoGrowTextarea
@@ -646,26 +726,51 @@ function TaskEditor({
 
         {/* Vedhæftninger */}
         <TaskAttachments taskId={task.id} />
+          </>
+        )}
       </div>
 
       {/* Footer (fast) */}
       <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/60 px-5 py-3">
         <div className="flex min-w-0 items-center gap-2.5">
-          {task.status !== "done" && (
+          {showHistory ? (
             <Button
-              variant="outline"
-              className="text-success border-success/40 hover:bg-success/10"
-              onClick={handleMarkDone}
-              disabled={pending || closing}
+              variant="ghost"
+              onClick={() => setShowHistory(false)}
+              className="text-muted-foreground"
             >
-              <Check className="size-4" />
-              Markér som færdig
+              <ArrowLeft className="size-4" />
+              Tilbage til opgaven
             </Button>
-          )}
-          {autoSaveLabel[autoSaveState] && (
-            <span className="truncate text-xs text-muted-foreground">
-              {autoSaveLabel[autoSaveState]}
-            </span>
+          ) : (
+            <>
+              {task.status !== "done" && (
+                <Button
+                  variant="outline"
+                  className="text-success border-success/40 hover:bg-success/10"
+                  onClick={handleMarkDone}
+                  disabled={pending || closing}
+                >
+                  <Check className="size-4" />
+                  Markér som færdig
+                </Button>
+              )}
+              {/* Historik – hent en tidligere udgave tilbage, hvis man er
+                  kommet til at slette noget vigtigt. */}
+              <Button
+                variant="ghost"
+                onClick={() => void openHistory()}
+                className="text-muted-foreground"
+              >
+                <History className="size-4" />
+                Historik
+              </Button>
+              {autoSaveLabel[autoSaveState] && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {autoSaveLabel[autoSaveState]}
+                </span>
+              )}
+            </>
           )}
         </div>
         {/* Ingen "Gem"-knap – ændringer gemmes automatisk løbende, og "Luk"
