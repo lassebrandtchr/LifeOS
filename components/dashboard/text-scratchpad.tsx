@@ -71,10 +71,17 @@ export function TextScratchpad() {
           return;
         }
 
-        if (res.content === null) {
-          // Ingen række i skyen endnu. Har DENNE enhed tekst (fx den gamle
-          // tekst fra computeren, som kun lå i localStorage), løftes den op,
-          // så den fremover også kan ses på telefonen. Intet slettes.
+        // ── EN TOM SKY MÅ ALDRIG SLETTE RIGTIG TEKST ────────────────────────
+        // Her stod før: "skyen er sandheden – også når den er tom". Det var en
+        // ALVORLIG fejl. En enhed med tom boks (telefonen, som endnu ikke havde
+        // teksten) nåede at gemme "" op i skyen, og næste gang computeren
+        // åbnede, adlød den den tomme sky og OVERSKREV den rigtige tekst –
+        // både på skærmen og i det lokale lager. Teksten var dermed væk.
+        //
+        // Ny regel: tom sky (både "ingen række" og "tom tekst") betragtes som
+        // "ingen data" og overskriver ALDRIG noget. Har enheden lokal tekst,
+        // vinder den og løftes op i skyen i stedet.
+        if (!res.content) {
           if (local) {
             void saveScratchpad(local)
               .then(() => {
@@ -82,13 +89,12 @@ export function TextScratchpad() {
               })
               .catch(() => {});
           } else {
-            syncedRef.current = "";
+            syncedRef.current = res.content ?? "";
           }
           return;
         }
 
-        // Skyen er sandheden – også når den er tom (fx fordi der er trykket
-        // "Ryd" på en anden enhed; så skal teksten ikke genopstå her).
+        // Skyen har rigtig tekst → den er den fælles sandhed på tværs af enheder.
         setText(res.content);
         safeSetItem(STORAGE_KEY, res.content);
         syncedRef.current = res.content;
@@ -107,8 +113,18 @@ export function TextScratchpad() {
   // Gem løbende: lokalt med det samme, og i databasen kort efter (debounce),
   // så hvert tastetryk ikke bliver et netværkskald.
   React.useEffect(() => {
-    if (!loaded) return; // gem ALDRIG før vi har hentet – se kommentar ovenfor
+    if (!loaded) return; // gem ALDRIG før vi har hentet
     safeSetItem(STORAGE_KEY, text);
+
+    // Gem KUN hvis teksten faktisk er ÆNDRET i forhold til det, vi hentede.
+    //
+    // Uden denne linje gemte en enhed sin (tomme) boks op i skyen, blot fordi
+    // den var færdig med at indlæse. Det var netop dét, der skete: telefonen
+    // havde ingen lokal tekst, gemte "" op i databasen, og bagefter overskrev
+    // computeren sin rigtige tekst med den tomme værdi. En enhed må aldrig
+    // skrive noget op i skyen, som brugeren ikke selv har tastet.
+    if (text === (syncedRef.current ?? "")) return;
+
     const timer = setTimeout(() => {
       void saveScratchpad(text)
         .then(() => {
@@ -137,7 +153,9 @@ export function TextScratchpad() {
             setTimeout(() => r({ ok: false }), LOAD_TIMEOUT_MS),
           ),
         ]);
-        if (cancelled || !res.ok || res.content === null) return;
+        // !res.content dækker BÅDE "ingen række" og "tom tekst" – en tom sky
+        // må aldrig overskrive noget her (samme regel som ved indlæsning).
+        if (cancelled || !res.ok || !res.content) return;
         const remote = res.content;
 
         setText((current) => {
