@@ -271,11 +271,7 @@ export function buildActionList(
     );
   }
 
-  // Import behandles ALTID som "kan vente" og samles nederst i listen, uanset
-  // den oprindelige prioritet (Lasses ønske). Badgen følger med, fordi den
-  // læser item.priority.
   const isImport = (i: ActionItem) => topicById.get(i.id) === "Import";
-  for (const i of items) if (isImport(i)) i.priority = "can_wait";
 
   // Saml elementer med samme emne, så de står lige efter hinanden – men KUN
   // inden for én prioritetsgruppe, så urgent→important→can_wait bevares.
@@ -296,17 +292,28 @@ export function buildActionList(
     return order.flatMap((k) => buckets.get(k)!);
   };
 
-  const rest = items.filter((i) => !isImport(i));
-  const importItems = items.filter(isImport); // alle "Import" = ét samlet emne
+  // Import-opgaver samles stadig som ét blok NEDERST – men nu nederst i DERES
+  // EGEN prioritetsgruppe, ikke tvunget ned i "kan vente".
+  //
+  // VIGTIGT: her stod før `if (isImport(i)) i.priority = "can_wait"`, som
+  // overskrev prioriteten HVER gang listen blev bygget. Det betød, at et skift
+  // fra "Kan vente" til "Vigtigt" blev gemt korrekt i databasen (og kunne ses
+  // i opgave-detaljerne), men ALDRIG slog igennem på listen – badgen blev ved
+  // med at sige "Kan vente", punktet flyttede sig ikke, og omrokerings-
+  // animationen udløstes derfor heller aldrig. Prioriteten er brugerens valg
+  // og bliver nu respekteret. At import starter som "kan vente" styres i
+  // stedet af hurtig-handlingens standardværdi (config/quick-actions.ts).
+  const tier = (p: Priority): ActionItem[] => {
+    const inTier = items.filter((i) => i.priority === p);
+    return [
+      ...clusterByTopic(inTier.filter((i) => !isImport(i))),
+      ...inTier.filter(isImport), // hele import-gruppen samlet til sidst
+    ];
+  };
 
   return {
-    urgent: clusterByTopic(rest.filter((i) => i.priority === "urgent")),
-    important: clusterByTopic(rest.filter((i) => i.priority === "important")),
-    // Ikke-import "kan vente" (grupperet) først, derefter hele import-gruppen
-    // samlet nederst.
-    can_wait: [
-      ...clusterByTopic(rest.filter((i) => i.priority === "can_wait")),
-      ...importItems,
-    ],
+    urgent: tier("urgent"),
+    important: tier("important"),
+    can_wait: tier("can_wait"),
   };
 }

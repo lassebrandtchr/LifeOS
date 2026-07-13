@@ -73,7 +73,12 @@ export const storgaardActions: QuickAction[] = [
     title: "Import af bil",
     workspace: "work",
     category: "salg",
-    priority: "important",
+    // Importbiler starter som "kan vente" og lander dermed nederst i
+    // Action-listen (Lasses ønske). Det er nu en STANDARDVÆRDI, ikke en
+    // tvang: ændrer man prioriteten på opgaven bagefter, flytter den sig
+    // rent faktisk op i listen (før blev valget overskrevet hver gang
+    // listen blev bygget – se features/dashboard/action-list.ts).
+    priority: "can_wait",
     status: "in_progress",
     note: IMPORT_BIL_NOTE,
   },
