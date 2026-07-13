@@ -980,14 +980,13 @@ export function JarvisDashboard({
             samme bredde som Arbejdsoverblik ovenover, men mere kompakte kasser. */}
         <PageQuickActions actions={isWork ? storgaardActions : privatActions} scratchpad />
 
-        {/* Lille udgave af Action-listen – samme data/logik som undersiderne,
-            skifter automatisk mellem arbejde og privat ud fra arbejdstid,
-            med et link videre til hele listen. */}
+        {/* Action-listen – samme data/logik som undersiderne, skifter
+            automatisk mellem arbejde og privat ud fra arbejdstid. Viser hele
+            listen (intet loft), så forsiden og undersiden altid stemmer
+            overens med hinanden. */}
         <ActionList
           groups={isWork ? actionGroups.work : actionGroups.private}
           workspace={isWork ? "work" : "private"}
-          limit={4}
-          viewAllHref={isWork ? "/storgaard-biler" : "/privat"}
         />
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
