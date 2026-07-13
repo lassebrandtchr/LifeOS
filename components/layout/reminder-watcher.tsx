@@ -19,11 +19,13 @@ function fmtReminder(iso: string): string {
 
 /**
  * ReminderWatcher – poller hvert 30. sekund for opgaver hvor "Påmind mig"-
- * tiden er nået, og viser en tydelig, glødende grøn, let "vibrerende"
- * pop op i højre side af appen (uanset hvilken side man er på) – lige
- * præcis som efterspurgt. Forsvinder først når man klikker den (åbner
- * opgaven) eller lukker den eksplicit – begge dele rydder samtidig
- * reminder_at server-side, så den aldrig dukker op igen af sig selv.
+ * tiden er nået, og viser en tydelig, glødende, let "vibrerende" pop op i
+ * højre side af appen (uanset hvilken side man er på) – lige præcis som
+ * efterspurgt. Glødfarven følger det valgte farvetema (var(--primary) via
+ * .reminder-toast i globals.css), så den fx er blå i navy-temaet og rød i
+ * bordeaux-temaet. Forsvinder først når man klikker den (åbner opgaven)
+ * eller lukker den eksplicit – begge dele rydder samtidig reminder_at
+ * server-side, så den aldrig dukker op igen af sig selv.
  *
  * Bevidst uden localStorage-tracking: at rydde reminder_at i databasen ved
  * lukning er den enkle, robuste kilde til sandhed (virker på tværs af
@@ -75,14 +77,20 @@ export function ReminderWatcher() {
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
             transition={{ type: "spring", stiffness: 340, damping: 26 }}
-            className="reminder-toast pointer-events-auto w-[300px] rounded-2xl border border-emerald-400/50 p-4"
+            className="reminder-toast pointer-events-auto w-[300px] rounded-2xl border p-4"
             style={{
               backgroundImage:
-                "linear-gradient(135deg, color-mix(in oklab, #22c55e 16%, var(--card)) 0%, var(--card) 70%)",
+                "linear-gradient(135deg, color-mix(in oklab, var(--primary) 16%, var(--card)) 0%, var(--card) 70%)",
             }}
           >
             <div className="flex items-start gap-3">
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/15 text-success">
+              <span
+                className="flex size-9 shrink-0 items-center justify-center rounded-full"
+                style={{
+                  backgroundColor: "color-mix(in oklab, var(--primary) 15%, transparent)",
+                  color: "var(--primary)",
+                }}
+              >
                 <Bell className="size-4.5" />
               </span>
               <button
@@ -90,7 +98,10 @@ export function ReminderWatcher() {
                 onClick={() => openTask(task)}
                 className="min-w-0 flex-1 text-left"
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-success">
+                <p
+                  className="text-xs font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--primary)" }}
+                >
                   Påmindelse
                 </p>
                 <p className="mt-0.5 text-sm font-semibold leading-snug text-foreground">
