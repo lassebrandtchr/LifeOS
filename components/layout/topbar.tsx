@@ -6,6 +6,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Logo } from "@/components/shared/logo";
 import { ProfileMenu } from "@/components/layout/profile-menu";
+import { MobileMenu } from "@/components/layout/mobile-menu";
 import { GlobalSearch } from "@/components/layout/global-search";
 import { NotificationsBell } from "@/components/layout/notifications-bell";
 import { useSidebar } from "@/components/layout/sidebar-context";
@@ -60,6 +61,11 @@ export function Topbar({
         <ThemeToggle />
         {/* Profilmenu (indlogget bruger) – synlig også på mobil */}
         <ProfileMenu user={user} />
+        {/* Menu (kun mobil): sidebaren er skjult på små skærme, og bund-baren
+            viser kun 4 af 9 sider – uden denne kunne Mail, Kalender, Opgaver
+            og Markedsføring slet ikke nås fra en telefon. Indeholder også
+            søgningen, som ellers kun fandtes på desktop. */}
+        <MobileMenu />
       </div>
     </header>
   );
