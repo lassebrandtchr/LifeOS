@@ -39,13 +39,24 @@ export function ReminderWatcher() {
     let cancelled = false;
 
     async function poll() {
-      const due = await getDueReminders();
-      if (cancelled) return;
-      setActive((prev) => {
-        const prevIds = new Set(prev.map((t) => t.id));
-        const fresh = due.filter((t) => !prevIds.has(t.id));
-        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-      });
+      // Try/catch: på mobil fejler et netværkskald jævnligt (dårlig dækning,
+      // skærmen har været slukket, appen har ligget i baggrunden). Uden dette
+      // ville et enkelt fejlet kald give en ubehandlet fejl og stoppe
+      // påmindelserne resten af sessionen. Nu springes runden bare over, og
+      // næste poll (30 s senere) prøver igen.
+      try {
+        const due = await getDueReminders();
+        if (cancelled) return;
+        if (!Array.isArray(due)) return; // defensiv: aldrig .filter på ikke-array
+        setActive((prev) => {
+          const prevIds = new Set(prev.map((t) => t.id));
+          const fresh = due.filter((t) => !prevIds.has(t.id));
+          return fresh.length > 0 ? [...prev, ...fresh] : prev;
+        });
+      } catch {
+        // Stille fejl – påmindelser er ikke kritiske nok til at genere med en
+        // fejlbesked hvert 30. sekund. Næste runde forsøger igen.
+      }
     }
 
     poll();
@@ -58,7 +69,10 @@ export function ReminderWatcher() {
 
   function dismiss(task: Task) {
     setActive((prev) => prev.filter((t) => t.id !== task.id));
-    void updateTask(task.id, { reminder_at: null });
+    // .catch(): fejler kaldet (dårlig dækning), skal påmindelsen stadig
+    // forsvinde fra skærmen – den dukker så op igen ved næste poll, hvilket
+    // er den rigtige opførsel (reminder_at blev jo ikke ryddet).
+    void updateTask(task.id, { reminder_at: null }).catch(() => {});
   }
 
   function openTask(task: Task) {

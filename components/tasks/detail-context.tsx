@@ -81,8 +81,13 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  // Slog den seneste gemning fejl? Så må næste "Luk" ALTID lukke – ellers
+  // kunne en telefon uden dækning låse editoren fast (se requestClose).
+  const saveFailedRef = React.useRef(false);
+
   const open = React.useCallback((i: DetailItem) => {
     setClosing(false);
+    saveFailedRef.current = false;
     setItem(i);
   }, []);
 
@@ -96,7 +101,8 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   // Luk-FORSØG: gem evt. ikke-gemte ændringer færdigt, og luk først når det
-  // er lykkedes. Fejler gemningen, forbliver modalen åben, så intet tabes.
+  // er lykkedes. Fejler gemningen, forbliver modalen åben, så intet tabes –
+  // men KUN én gang: andet tryk på "Luk" lukker alligevel.
   const requestClose = React.useCallback(async () => {
     if (closing) return;
     const flush = flushRef.current;
@@ -104,10 +110,36 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
       hardClose();
       return;
     }
+
+    // Er gemningen allerede slået fejl én gang, lukker vi nu uanset hvad.
+    // Uden denne udvej ville man sidde fast i editoren på en telefon uden
+    // dækning – ude af stand til at lukke, uanset hvor mange gange man
+    // trykker (alle knapper er deaktiveret mens der "gemmes").
+    if (saveFailedRef.current) {
+      hardClose();
+      return;
+    }
+
     setClosing(true);
-    const ok = await flush();
-    if (ok) hardClose();
-    else setClosing(false);
+    let ok = false;
+    try {
+      ok = await flush();
+    } catch {
+      // Netværksfejl (typisk mobil): behandl som mislykket gemning i stedet
+      // for at lade fejlen boble op – ellers ville `closing` blive hængende
+      // på true for evigt, og modalen kunne aldrig lukkes igen.
+      ok = false;
+    }
+
+    if (ok) {
+      saveFailedRef.current = false;
+      hardClose();
+      return;
+    }
+
+    saveFailedRef.current = true;
+    setClosing(false);
+    toast.error("Kunne ikke gemme – tjek din forbindelse. Tryk “Luk” igen for at lukke alligevel.");
   }, [closing, hardClose]);
 
   React.useEffect(() => {
@@ -299,15 +331,23 @@ function TaskEditor({
     if (!fields.title.trim()) return true;
     if (JSON.stringify(fields) === lastSavedJson.current) return true; // intet nyt
     setAutoSaveState("saving");
-    const res = await updateTask(task.id, fields);
-    if (res?.error) {
+    // Try/catch: et afbrudt netværkskald må ALDRIG kaste videre herfra –
+    // provideren (requestClose) ville så hænge fast i "gemmer"-tilstand.
+    // Fejl vises som "error"-tekst i footeren; provideren giver selve
+    // fejlbeskeden, så vi undgår to beskeder oven i hinanden.
+    try {
+      const res = await updateTask(task.id, fields);
+      if (res?.error) {
+        setAutoSaveState("error");
+        return false;
+      }
+      lastSavedJson.current = JSON.stringify(fields);
+      setAutoSaveState("saved");
+      return true;
+    } catch {
       setAutoSaveState("error");
-      toast.error(res.error);
       return false;
     }
-    lastSavedJson.current = JSON.stringify(fields);
-    setAutoSaveState("saved");
-    return true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
 
@@ -337,12 +377,19 @@ function TaskEditor({
     const timer = setTimeout(async () => {
       setAutoSaveState("saving");
       const fields = fieldsRef.current;
-      const res = await updateTask(task.id, fields);
-      if (res?.error) {
+      // Try/catch: auto-gem kører i baggrunden. Fejler netværket (mobil),
+      // vises blot "Kunne ikke gemme – tjek din forbindelse" i footeren, og
+      // næste tastetryk forsøger igen. Uden dette blev det en ubehandlet fejl.
+      try {
+        const res = await updateTask(task.id, fields);
+        if (res?.error) {
+          setAutoSaveState("error");
+        } else {
+          lastSavedJson.current = JSON.stringify(fields);
+          setAutoSaveState("saved");
+        }
+      } catch {
         setAutoSaveState("error");
-      } else {
-        lastSavedJson.current = JSON.stringify(fields);
-        setAutoSaveState("saved");
       }
     }, 1200);
 
@@ -357,7 +404,9 @@ function TaskEditor({
     return () => {
       const fields = fieldsRef.current;
       if (fields.title.trim() && JSON.stringify(fields) !== lastSavedJson.current) {
-        void updateTask(task.id, fields);
+        // .catch(): komponenten er ved at forsvinde – en fejl her kan ikke
+        // vises nogen steder, men må heller ikke blive en ubehandlet fejl.
+        void updateTask(task.id, fields).catch(() => {});
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

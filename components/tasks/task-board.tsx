@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { bucketOrder, buckets, type Bucket } from "@/features/tasks/constants";
@@ -151,17 +152,44 @@ export function TaskBoard({ initial }: { initial: TasksByBucket }) {
       [to]: [...prev[to], { ...moved, bucket: to }],
     }));
 
-    void moveTask(id, to, Date.now());
+    // Fejler kaldet (typisk mobil uden dækning), flyttes kortet TILBAGE, så
+    // board'et ikke viser en flytning, der aldrig blev gemt.
+    void moveTask(id, to, Date.now()).catch(() => {
+      setData((prev) => ({
+        ...prev,
+        [to]: prev[to].filter((t) => t.id !== id),
+        [from]: [...prev[from], { ...moved, bucket: from }],
+      }));
+      toast.error("Kunne ikke flytte opgaven – tjek din forbindelse.");
+    });
   }
 
   function handleComplete(id: string) {
-    // Optimistisk: fjern fra board'et med det samme.
+    // Gem kortet FØR vi fjerner det, så det kan sættes tilbage hvis
+    // gemningen fejler.
+    let removed: Task | undefined;
+    let removedFrom: Bucket | undefined;
     setData((prev) => {
       const next = { ...prev };
-      for (const b of bucketOrder) next[b] = next[b].filter((t) => t.id !== id);
+      for (const b of bucketOrder) {
+        const hit = next[b].find((t) => t.id === id);
+        if (hit) {
+          removed = hit;
+          removedFrom = b;
+        }
+        next[b] = next[b].filter((t) => t.id !== id);
+      }
       return next;
     });
-    void setTaskStatus(id, "done");
+
+    void setTaskStatus(id, "done").catch(() => {
+      if (removed && removedFrom) {
+        const task = removed;
+        const bucket = removedFrom;
+        setData((prev) => ({ ...prev, [bucket]: [...prev[bucket], task] }));
+      }
+      toast.error("Kunne ikke markere som færdig – tjek din forbindelse.");
+    });
   }
 
   return (

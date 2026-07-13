@@ -563,6 +563,38 @@
     0 16px 48px -12px rgba(13, 32, 24, 0.28);
 }
 
+/* ─────────────────── MOBIL: sluk for de tunge blur-lag ────────────────────
+   backdrop-filter er ekstremt dyrt på telefoner. Hvert glas-lag skal
+   komponeres på ny i HVER scroll-frame, og iOS Safari bruger så meget
+   hukommelse på det, at systemet smider fanebladet ud og genindlæser siden –
+   hvilket føles præcis som at "appen crasher".
+
+   Under 768px droppes blur derfor helt, og fladerne gøres i stedet
+   uigennemsigtige (--card / --background er allerede solide farver i alle 12
+   tema-blokke), så alt stadig ser rigtigt ud og er læsbart. Designet på
+   desktop er fuldstændig uændret.
+
+   Reglerne står bevidst UDEN @layer, så de vinder over Tailwinds
+   utility-lag (ulagdelt CSS slår lagdelt CSS). */
+@media (max-width: 767px) {
+  .glass,
+  .glass-card,
+  .glass-card-strong,
+  [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .glass {
+    background-color: var(--background);
+  }
+
+  .glass-card,
+  .glass-card-strong {
+    background-color: var(--card);
+  }
+}
+
 /* Venstre-menu – grøn gradient-flade (mørk i dark mode, dyb grøn i light mode) */
 .app-sidebar {
   background-image: var(--sidebar-grad);

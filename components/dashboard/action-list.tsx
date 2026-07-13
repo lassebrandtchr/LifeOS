@@ -63,7 +63,17 @@ export function ActionList({
 
   function handleComplete(taskId: string) {
     setRemovedTaskIds((prev) => new Set(prev).add(taskId));
-    void setTaskStatus(taskId, "done");
+    // Fejler kaldet (typisk mobil uden dækning), sættes punktet TILBAGE på
+    // listen. Ellers ville det se ud som om opgaven var markeret færdig,
+    // selvom den aldrig blev gemt – og forsvinde ved næste genindlæsning.
+    void setTaskStatus(taskId, "done").catch(() => {
+      setRemovedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
+      toast.error("Kunne ikke markere som færdig – tjek din forbindelse.");
+    });
   }
 
   function handleRefresh() {

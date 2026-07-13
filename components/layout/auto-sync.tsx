@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { syncEverythingNow } from "@/features/integrations/actions";
+import { safeGetItem, safeSetItem } from "@/lib/safe-storage";
 
 // Hver 30. minut – Lasses ønskede opdaterings-kadence.
 const INTERVAL_MS = 30 * 60 * 1000;
@@ -31,11 +32,19 @@ export function AutoSync() {
     let cancelled = false;
 
     async function attempt() {
-      const last = Number(localStorage.getItem(STORAGE_KEY) ?? 0);
+      // safeGetItem/safeSetItem: localStorage kaster i Safari privat browsing
+      // og når telefonens lager er fyldt – det må aldrig vælte appen.
+      const last = Number(safeGetItem(STORAGE_KEY) ?? 0);
       if (Date.now() - last < INTERVAL_MS) return;
-      localStorage.setItem(STORAGE_KEY, String(Date.now()));
-      const res = await syncEverythingNow();
-      if (!cancelled && res?.ok) router.refresh();
+      safeSetItem(STORAGE_KEY, String(Date.now()));
+      // Try/catch: baggrunds-synk er "best effort". Et fejlet netværkskald på
+      // mobil må ikke give en ubehandlet fejl – vi prøver bare igen næste gang.
+      try {
+        const res = await syncEverythingNow();
+        if (!cancelled && res?.ok) router.refresh();
+      } catch {
+        // Stille fejl – synk forsøges igen ved næste interval.
+      }
     }
 
     void attempt();
