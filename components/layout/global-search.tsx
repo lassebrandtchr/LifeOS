@@ -175,22 +175,44 @@ export function GlobalSearch() {
             <div className="max-h-80 overflow-y-auto">
               {results.tasks.length > 0 && (
                 <Group label={`Opgaver · ${TASK_STATUS_LABEL[taskStatus]}`}>
-                  {results.tasks.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => openTask(t)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-secondary"
-                    >
-                      <span
-                        className={cn(
-                          "size-2 shrink-0 rounded-full",
-                          priorities[t.priority]?.dot ?? "bg-muted-foreground",
+                  {results.tasks.map((t) => {
+                    // Serveren sorterer aktive ØVERST og afsluttede nedenunder.
+                    // Afsluttede dæmpes + får et "Afsluttet"-mærke, så man ved
+                    // et blik kan se, hvor den aktive del af listen slutter.
+                    const closed = t.status === "done" || t.status === "archived";
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => openTask(t)}
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                      >
+                        <span
+                          className={cn(
+                            "size-2 shrink-0 rounded-full",
+                            priorities[t.priority]?.dot ?? "bg-muted-foreground",
+                          )}
+                        />
+                        {closed ? (
+                          <CheckCircle2 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <ListChecks className="size-4 shrink-0 text-muted-foreground" />
                         )}
-                      />
-                      <ListChecks className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">{t.title}</span>
-                    </button>
-                  ))}
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 truncate",
+                            closed && "text-muted-foreground line-through",
+                          )}
+                        >
+                          {t.title}
+                        </span>
+                        {closed && (
+                          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            Afsluttet
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </Group>
               )}
               {results.projects.length > 0 && (

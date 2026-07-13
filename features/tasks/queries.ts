@@ -243,10 +243,14 @@ export async function searchAll(
       .map((f) => `customer->>${f}.ilike.${pattern}`)
       .join(",");
 
+    // Hent rigeligt (25) fra hver forespørgsel, IKKE kun de 10 vi ender med at
+    // vise. Ellers kunne en bunke afsluttede opgaver fylde grænsen op og
+    // skubbe de aktive HELT ud af resultatet, før vi overhovedet nåede at
+    // sortere dem øverst. Vi sorterer og skærer først ned bagefter.
     const [tasksRes, customerRes, projectsRes, notesRes, emailsRes, notionRes] =
       await Promise.all([
-        tasksBase().or(textOr).limit(10),
-        tasksBase().or(customerOr).limit(10),
+        tasksBase().or(textOr).limit(25),
+        tasksBase().or(customerOr).limit(25),
         supabase.from("projects").select("*").ilike("name", pattern).limit(5),
         supabase
           .from("notes")
@@ -281,6 +285,13 @@ export async function searchAll(
       seenTaskIds.add(row.id);
       tasks.push(row);
     }
+
+    // AKTIVE ØVERST, afsluttede nedenunder (gælder især "Alle"-filteret, hvor
+    // begge dele blandes). Det man stadig skal handle på, er næsten altid det
+    // man leder efter – gamle, lukkede sager må ikke skygge for det.
+    // Array.sort er stabil, så rækkefølgen inden for hver gruppe bevares.
+    const isClosed = (t: Task) => t.status === "done" || t.status === "archived";
+    tasks.sort((a, b) => Number(isClosed(a)) - Number(isClosed(b)));
 
     return {
       tasks: tasks.slice(0, 10),
