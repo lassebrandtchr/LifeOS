@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight, CalendarClock, Bell, UserRound, MapPin } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,12 +14,29 @@ import { setTaskStatus, quickCreateTask } from "@/features/tasks/actions";
 import { syncEverythingNow } from "@/features/integrations/actions";
 import { summarizeTradeIn } from "@/features/tasks/trade-in";
 import { normalizeCustomer } from "@/features/tasks/customer";
+import { useDesktopMotion } from "@/lib/use-desktop-motion";
 import { deriveTopic, topicColor } from "@/features/tasks/topic";
 import { priorities } from "@/features/tasks/constants";
 import type { Workspace, Priority } from "@/features/tasks/constants";
 import type { ActionItem, ActionListGroups } from "@/features/dashboard/action-list";
 
 const GROUP_ORDER: Priority[] = ["urgent", "important", "can_wait"];
+
+/**
+ * Fjeder til Action-listens omrokering. Når en opgaves prioritet ændres (fx
+ * "Kan vente" → "Haster"), flytter den sig op/ned gennem de andre punkter –
+ * denne fjeder giver den et blødt, fysisk "glid" i stedet for et hop.
+ *
+ * Værdierne er valgt så bevægelsen er tydelig nok til at man kan FØLGE
+ * opgaven med øjnene hele vejen (ikke for hurtig), men uden at gynge/hoppe
+ * i enden (damping højt nok til stort set ingen overshoot).
+ */
+const REORDER_SPRING = {
+  type: "spring",
+  stiffness: 260,
+  damping: 30,
+  mass: 0.9,
+} as const;
 
 // Farvet prioritets-badge pr. opgave (erstatter de tidligere gruppe-
 // overskrifter "HASTER · 3" osv.) – literal klasse-strenge, så Tailwinds
@@ -60,6 +78,9 @@ export function ActionList({
   const router = useRouter();
   const [removedTaskIds, setRemovedTaskIds] = useState<ReadonlySet<string>>(new Set());
   const [refreshing, startRefresh] = useTransition();
+  // Kun desktop (og kun hvis brugeren ikke har slået bevægelse fra) får den
+  // glidende omrokerings-animation – se lib/use-desktop-motion.ts.
+  const motionEnabled = useDesktopMotion();
 
   function handleComplete(taskId: string) {
     setRemovedTaskIds((prev) => new Set(prev).add(taskId));
@@ -131,16 +152,25 @@ export function ActionList({
           Ingen opgaver eller mails kræver handling lige nu – godt gået!
         </p>
       ) : (
-        <ul className="space-y-2">
-          {flatShown.map((item) => (
-            <ActionRow
-              key={item.id}
-              item={item}
-              workspace={workspace}
-              onComplete={handleComplete}
-            />
-          ))}
-        </ul>
+        // AnimatePresence + layout på hver række giver "FLIP"-animationen:
+        // når rækkefølgen ændrer sig (fx efter et prioritetsskift), måler
+        // Framer Motion hver rækkes gamle og nye position og glider den
+        // fysisk fra A til B – i stedet for at listen bare hopper om.
+        // initial={false}: ingen animation ved første indlæsning, kun når
+        // listen rent faktisk ændrer sig bagefter.
+        <motion.ul layout={motionEnabled} className="space-y-2">
+          <AnimatePresence initial={false}>
+            {flatShown.map((item) => (
+              <ActionRow
+                key={item.id}
+                item={item}
+                workspace={workspace}
+                onComplete={handleComplete}
+                motionEnabled={motionEnabled}
+              />
+            ))}
+          </AnimatePresence>
+        </motion.ul>
       )}
 
       {viewAllHref && (hiddenCount > 0 || total > 0) && (
@@ -160,10 +190,13 @@ function ActionRow({
   item,
   workspace,
   onComplete,
+  motionEnabled,
 }: {
   item: ActionItem;
   workspace: Workspace;
   onComplete: (taskId: string) => void;
+  /** Kør layout-/ind-/ud-animationer (kun desktop). */
+  motionEnabled: boolean;
 }) {
   const { open } = useOpenDetail();
   const [creating, setCreating] = useState(false);
@@ -198,7 +231,21 @@ function ActionRow({
   }
 
   return (
-    <li
+    <motion.li
+      // layout: kernen i animationen. Når rækken skifter plads i listen
+      // (prioritet ændret), måler Framer Motion dens gamle og nye position og
+      // GLIDER den derhen – forbi de andre punkter – i stedet for at hoppe.
+      // "position": kun placeringen animeres, ikke størrelsen – ellers ville
+      // rækkens indhold blive klemt/strakt undervejs.
+      layout={motionEnabled ? "position" : false}
+      transition={REORDER_SPRING}
+      initial={motionEnabled ? { opacity: 0, y: -6 } : false}
+      animate={motionEnabled ? { opacity: 1, y: 0 } : false}
+      exit={
+        motionEnabled
+          ? { opacity: 0, x: 24, scale: 0.97, transition: { duration: 0.18 } }
+          : undefined
+      }
       onClick={clickable ? () => open({ type: "task", task: item.task! }) : undefined}
       className={cn(
         "flex items-start gap-2.5 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 transition-colors",
@@ -321,6 +368,6 @@ function ActionRow({
           Opret opgave
         </button>
       )}
-    </li>
+    </motion.li>
   );
 }
