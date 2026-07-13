@@ -193,33 +193,60 @@ const EMPTY_SEARCH: SearchResults = {
   notion: [],
 };
 
-/** Filter for opgave-status i global søgning: aktive (ikke færdig/arkiveret) eller afsluttede. */
-export type TaskSearchStatus = "active" | "completed";
+/**
+ * Filter for opgave-status i global søgning.
+ * "all" = både aktive OG afsluttede (standard – man skal kunne finde en gammel
+ * kunde igen, uden først at gætte om opgaven er lukket).
+ */
+export type TaskSearchStatus = "all" | "active" | "completed";
 
 /** Global søgning på tværs af opgaver, projekter, noter, mails og Notion. */
 export async function searchAll(
   query: string,
-  taskStatus: TaskSearchStatus = "active",
+  taskStatus: TaskSearchStatus = "all",
 ): Promise<SearchResults> {
   const q = query.trim();
   if (!q || !isSupabaseConfigured()) return EMPTY_SEARCH;
   try {
     const supabase = await createClient();
-    const pattern = `%${q}%`;
-    let tasksQuery = supabase
-      .from("tasks")
-      .select("*")
-      .or(`title.ilike.${pattern},description.ilike.${pattern}`);
-    // "Aktive" matcher samme definition som resten af appen (getTasksByBucket):
-    // hverken færdig eller arkiveret. "Afsluttede" er specifikt status "done"
-    // (arkiverede regnes ikke med her – det er en anden tilstand end "færdig").
-    tasksQuery =
-      taskStatus === "completed"
-        ? tasksQuery.eq("status", "done")
-        : tasksQuery.not("status", "in", "(done,archived)");
-    const [tasksRes, projectsRes, notesRes, emailsRes, notionRes] =
+
+    // PostgREST's or()-syntaks bruger komma og parentes som skilletegn. Står de
+    // i selve søgeordet, brydes forespørgslen – så de fjernes her.
+    const safe = q.replace(/[(),"\\]/g, " ").trim();
+    if (!safe) return EMPTY_SEARCH;
+    const pattern = `%${safe}%`;
+
+    // Status-filteret bygges på ny pr. forespørgsel (en query-builder kan ikke
+    // genbruges, når den først er kørt).
+    const tasksBase = () => {
+      const qb = supabase.from("tasks").select("*");
+      // "Aktive" matcher samme definition som resten af appen
+      // (getTasksByBucket): hverken færdig eller arkiveret. "Afsluttede" er
+      // specifikt status "done". "Alle" filtrerer slet ikke på status, så både
+      // aktive og afsluttede opgaver kan findes.
+      if (taskStatus === "completed") return qb.eq("status", "done");
+      if (taskStatus === "active") return qb.not("status", "in", "(done,archived)");
+      return qb;
+    };
+
+    // Søg i ALT indhold på opgaven – ikke kun titel/beskrivelse som før.
+    // notes er rig-tekst (HTML), men ilike finder fint teksten inde i taggene.
+    const textOr = ["title", "description", "notes", "trade_in"]
+      .map((f) => `${f}.ilike.${pattern}`)
+      .join(",");
+
+    // Kundeinfo ligger i en JSONB-kolonne, så hvert felt skal søges for sig
+    // (customer->>phone osv.). Køres som en SEPARAT forespørgsel, så en fejl
+    // her (fx hvis migration 0013 ikke er kørt) ikke vælter hele søgningen –
+    // resten af resultaterne kommer stadig frem.
+    const customerOr = ["name", "phone", "email", "address"]
+      .map((f) => `customer->>${f}.ilike.${pattern}`)
+      .join(",");
+
+    const [tasksRes, customerRes, projectsRes, notesRes, emailsRes, notionRes] =
       await Promise.all([
-        tasksQuery.limit(8),
+        tasksBase().or(textOr).limit(10),
+        tasksBase().or(customerOr).limit(10),
         supabase.from("projects").select("*").ilike("name", pattern).limit(5),
         supabase
           .from("notes")
@@ -242,8 +269,21 @@ export async function searchAll(
           .limit(5),
       ]);
 
+    // Slå de to opgave-forespørgsler (indhold + kundeinfo) sammen. Samme opgave
+    // kan være fundet begge steder, så dubletter fjernes på id.
+    const seenTaskIds = new Set<string>();
+    const tasks: Task[] = [];
+    for (const row of [
+      ...((tasksRes.data as Task[]) ?? []),
+      ...((customerRes.data as Task[]) ?? []),
+    ]) {
+      if (seenTaskIds.has(row.id)) continue;
+      seenTaskIds.add(row.id);
+      tasks.push(row);
+    }
+
     return {
-      tasks: (tasksRes.data as Task[]) ?? [],
+      tasks: tasks.slice(0, 10),
       projects: (projectsRes.data as Project[]) ?? [],
       notes: (notesRes.data as Note[]) ?? [],
       emails:

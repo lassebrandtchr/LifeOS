@@ -8,6 +8,7 @@ import {
   ListChecks,
   ListTodo,
   CheckCircle2,
+  Layers,
   FolderKanban,
   StickyNote,
   Mail,
@@ -23,8 +24,16 @@ import type { SearchResults, TaskSearchStatus } from "@/features/tasks/queries";
 import type { Task, Project } from "@/features/tasks/types";
 
 const TASK_STATUS_LABEL: Record<TaskSearchStatus, string> = {
+  all: "Alle",
   active: "Aktive",
   completed: "Afsluttede",
+};
+
+/** Klik skifter rundt: Alle → Aktive → Afsluttede → Alle. */
+const NEXT_TASK_STATUS: Record<TaskSearchStatus, TaskSearchStatus> = {
+  all: "active",
+  active: "completed",
+  completed: "all",
 };
 
 const EMPTY: SearchResults = {
@@ -43,7 +52,10 @@ export function GlobalSearch() {
   const router = useRouter();
   const { open: openDetail } = useOpenDetail();
   const [query, setQuery] = React.useState("");
-  const [taskStatus, setTaskStatus] = React.useState<TaskSearchStatus>("active");
+  // Standard = "Alle": man skal kunne finde en gammel kunde igen uden først at
+  // skulle gætte, om opgaven er lukket. Før stod den på "Aktive", så alt
+  // afsluttet var usynligt i søgningen.
+  const [taskStatus, setTaskStatus] = React.useState<TaskSearchStatus>("all");
   const [results, setResults] = React.useState<SearchResults>(EMPTY);
   const [open, setOpen] = React.useState(false);
   const [pending, setPending] = React.useState(false);
@@ -129,19 +141,22 @@ export function GlobalSearch() {
         />
         {pending && <Loader2 className="size-4 shrink-0 animate-spin" />}
 
-        {/* Skifter om opgave-resultater viser aktive eller afsluttede opgaver.
+        {/* Skifter om opgave-resultater viser ALLE, kun aktive eller kun
+            afsluttede opgaver. Standard er "Alle", så intet er skjult.
             Projekter/noter/mails/Notion påvirkes ikke – kun opgave-status. */}
         <button
           type="button"
-          onClick={() =>
-            setTaskStatus((s) => (s === "active" ? "completed" : "active"))
-          }
-          title={`Viser ${TASK_STATUS_LABEL[taskStatus].toLowerCase()} opgaver – klik for at skifte til ${
-            taskStatus === "active" ? "afsluttede" : "aktive"
-          }`}
+          onClick={() => setTaskStatus((s) => NEXT_TASK_STATUS[s])}
+          title={`Viser ${TASK_STATUS_LABEL[
+            taskStatus
+          ].toLowerCase()} opgaver – klik for at skifte til ${TASK_STATUS_LABEL[
+            NEXT_TASK_STATUS[taskStatus]
+          ].toLowerCase()}`}
           className="flex shrink-0 items-center gap-1.5 rounded-lg border border-border/60 bg-secondary/60 px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-secondary"
         >
-          {taskStatus === "active" ? (
+          {taskStatus === "all" ? (
+            <Layers className="size-3.5 shrink-0 text-primary" />
+          ) : taskStatus === "active" ? (
             <ListTodo className="size-3.5 shrink-0 text-teal-600 dark:text-teal-400" />
           ) : (
             <CheckCircle2 className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
