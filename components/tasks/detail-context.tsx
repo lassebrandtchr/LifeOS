@@ -84,16 +84,21 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
   // Slog den seneste gemning fejl? Så må næste "Luk" ALTID lukke – ellers
   // kunne en telefon uden dækning låse editoren fast (se requestClose).
   const saveFailedRef = React.useRef(false);
+  // Er modalen allerede lukket? Bruges til at droppe svaret fra en gemning,
+  // der først kommer TILBAGE efter brugeren selv har lukket.
+  const closedRef = React.useRef(false);
 
   const open = React.useCallback((i: DetailItem) => {
     setClosing(false);
     saveFailedRef.current = false;
+    closedRef.current = false;
     setItem(i);
   }, []);
 
   // Luk med det samme + genopfrisk listen, så en ændring (fx flytning mellem
   // Privat/Storgaard) afspejles straks. Bruges når der ALLEREDE er gemt.
   const hardClose = React.useCallback(() => {
+    closedRef.current = true;
     flushRef.current = null;
     setClosing(false);
     setItem(null);
@@ -102,19 +107,28 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
 
   // Luk-FORSØG: gem evt. ikke-gemte ændringer færdigt, og luk først når det
   // er lykkedes. Fejler gemningen, forbliver modalen åben, så intet tabes –
-  // men KUN én gang: andet tryk på "Luk" lukker alligevel.
+  // men man kan ALTID komme ud (se de to udveje nedenfor).
   const requestClose = React.useCallback(async () => {
-    if (closing) return;
     const flush = flushRef.current;
+
+    // UDVEJ 1 – "Gemmer …" hænger.
+    // Trykker man luk IGEN, mens der stadig gemmes, lukker vi med det samme.
+    // Her stod før `if (closing) return`, som IGNOREREDE klikket – og hang
+    // gemningen (fx en langsom database, der lige er vågnet), stod modalen
+    // fast på "Gemmer …" for evigt med alle knapper deaktiveret. Gemningen
+    // kører videre i baggrunden; editorens unmount-effekt gemmer også.
+    if (closing) {
+      hardClose();
+      return;
+    }
+
     if (!flush) {
       hardClose();
       return;
     }
 
-    // Er gemningen allerede slået fejl én gang, lukker vi nu uanset hvad.
-    // Uden denne udvej ville man sidde fast i editoren på en telefon uden
-    // dækning – ude af stand til at lukke, uanset hvor mange gange man
-    // trykker (alle knapper er deaktiveret mens der "gemmes").
+    // UDVEJ 2 – gemningen er allerede slået fejl én gang. Så lukker vi nu,
+    // uanset hvad, i stedet for at holde brugeren fanget i editoren.
     if (saveFailedRef.current) {
       hardClose();
       return;
@@ -125,11 +139,14 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
     try {
       ok = await flush();
     } catch {
-      // Netværksfejl (typisk mobil): behandl som mislykket gemning i stedet
-      // for at lade fejlen boble op – ellers ville `closing` blive hængende
-      // på true for evigt, og modalen kunne aldrig lukkes igen.
+      // Netværksfejl: behandl som mislykket gemning i stedet for at lade
+      // fejlen boble op – ellers ville `closing` hænge på true for evigt.
       ok = false;
     }
+
+    // Nåede brugeren selv at lukke (UDVEJ 1) mens vi ventede? Så må vi ikke
+    // røre state eller vise beskeder for en modal, der ikke er der længere.
+    if (closedRef.current) return;
 
     if (ok) {
       saveFailedRef.current = false;
@@ -183,12 +200,22 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                   registerFlush={registerFlush}
                   onMarkDone={(fields) =>
                     startTransition(async () => {
-                      const res = await updateTask(item.task.id, { ...fields, status: "done" });
-                      if (res?.error) toast.error(res.error);
-                      else {
-                        toast.success("Opgave markeret som færdig ✓");
-                        if (res?.warning) toast.warning(res.warning);
-                        hardClose(); // allerede gemt → luk direkte
+                      // Timeout + try/catch: hænger databasen, ville `pending`
+                      // ellers blive stående på true, og ALLE knapper i
+                      // editoren ville være deaktiveret for evigt.
+                      try {
+                        const res = await saveTaskWithTimeout(item.task.id, {
+                          ...fields,
+                          status: "done",
+                        });
+                        if (res?.error) toast.error(res.error);
+                        else {
+                          toast.success("Opgave markeret som færdig ✓");
+                          if (res?.warning) toast.warning(res.warning);
+                          hardClose(); // allerede gemt → luk direkte
+                        }
+                      } catch {
+                        toast.error("Kunne ikke gemme – tjek din forbindelse.");
                       }
                     })
                   }
@@ -220,6 +247,34 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
 }
 
 // ─────────────────────────────── Opgave-editor ───────────────────────────
+
+/** Efter så lang tid opgiver vi en gemning og melder fejl i stedet. */
+const SAVE_TIMEOUT_MS = 12_000;
+
+/**
+ * updateTask, men den kan ALDRIG hænge for evigt.
+ *
+ * updateTask har allerede en timeout på selve databaseskrivningen, men IKKE på
+ * login-tjekket foran den. Er databasen langsom (fx netop vågnet på gratis-
+ * planen), kunne kaldet derfor blive hængende uden nogensinde at svare – og så
+ * stod editoren fast på "Gemmer …". Her kappes hele kaldet, så vi ALTID får et
+ * svar tilbage og kan vise en fejl i stedet for at fryse.
+ */
+async function saveTaskWithTimeout(
+  id: string,
+  fields: Parameters<typeof updateTask>[1],
+) {
+  return Promise.race([
+    updateTask(id, fields),
+    new Promise<Awaited<ReturnType<typeof updateTask>>>((resolve) =>
+      setTimeout(
+        () => resolve({ error: "Gemningen tog for lang tid – tjek din forbindelse." }),
+        SAVE_TIMEOUT_MS,
+      ),
+    ),
+  ]);
+}
+
 type TaskFields = {
   title: string;
   description: string | null;
@@ -336,7 +391,7 @@ function TaskEditor({
     // Fejl vises som "error"-tekst i footeren; provideren giver selve
     // fejlbeskeden, så vi undgår to beskeder oven i hinanden.
     try {
-      const res = await updateTask(task.id, fields);
+      const res = await saveTaskWithTimeout(task.id, fields);
       if (res?.error) {
         setAutoSaveState("error");
         return false;
@@ -381,7 +436,7 @@ function TaskEditor({
       // vises blot "Kunne ikke gemme – tjek din forbindelse" i footeren, og
       // næste tastetryk forsøger igen. Uden dette blev det en ubehandlet fejl.
       try {
-        const res = await updateTask(task.id, fields);
+        const res = await saveTaskWithTimeout(task.id, fields);
         if (res?.error) {
           setAutoSaveState("error");
         } else {
@@ -434,9 +489,11 @@ function TaskEditor({
             </span>
           </div>
         </div>
+        {/* Heller ikke deaktiveret mens der gemmes – X skal ALTID kunne lukke,
+            så en hængende gemning ikke kan spærre brugeren inde. */}
         <button
           onClick={onClose}
-          disabled={pending || closing}
+          disabled={pending}
           className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
           aria-label="Luk"
         >
@@ -614,8 +671,12 @@ function TaskEditor({
         {/* Ingen "Gem"-knap – ændringer gemmes automatisk løbende, og "Luk"
             venter på, at en sidste gemning er færdig, før den lukker. */}
         <div className="flex shrink-0 gap-2">
-          <Button variant="outline" onClick={onClose} disabled={pending || closing}>
-            {closing ? "Gemmer …" : "Luk"}
+          {/* IKKE deaktiveret mens der gemmes. Knappen var før `disabled` når
+              closing=true, så hang gemningen, kunne man hverken lukke eller
+              trykke sig ud – modalen stod fast på "Gemmer …". Nu kan man altid
+              trykke sig ud; status vises i stedet i teksten til venstre. */}
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            {closing ? "Luk alligevel" : "Luk"}
           </Button>
         </div>
       </div>

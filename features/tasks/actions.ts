@@ -37,9 +37,15 @@ const BACKEND_TIMEOUT =
 async function getAuth() {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // auth.getUser() går over netværket til Supabase og havde INGEN timeout.
+  // Er databasen langsom (fx netop vågnet på gratis-planen), hang HELE
+  // server-handlingen lige her – FØR raceTimeout omkring selve skrivningen
+  // nåede at beskytte noget som helst. Det var præcis dét, der fik editoren
+  // til at stå fast på "Gemmer …" uden nogensinde at komme videre.
+  // Nu kappes login-tjekket også, så en handling ALTID svarer.
+  const res = await raceTimeout(supabase.auth.getUser(), 8_000);
+  if (res === TIMED_OUT) throw new Error(BACKEND_TIMEOUT);
+  const user = res.data?.user;
   if (!user) return null;
   return { supabase, userId: user.id };
 }
@@ -405,7 +411,14 @@ export async function updateTask(
     customer?: Customer | null;
   },
 ): Promise<ActionState> {
-  const auth = await getAuth();
+  // getAuth kan nu kaste ved timeout (langsom database). Fang det her, så
+  // klienten får en pæn fejlbesked tilbage i stedet for et afvist kald.
+  let auth: Awaited<ReturnType<typeof getAuth>>;
+  try {
+    auth = await getAuth();
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : BACKEND_TIMEOUT };
+  }
   if (!auth) return { error: NOT_READY };
 
   const update: Record<string, unknown> = {};
