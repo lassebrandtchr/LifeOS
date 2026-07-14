@@ -5,6 +5,7 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import type { Node as PMNode, Fragment } from "@tiptap/pm/model";
 import {
   Bold as BoldIcon,
   Italic as ItalicIcon,
@@ -39,6 +40,74 @@ const TEXT_COLORS: { label: string; value: string | null }[] = [
   { label: "Lilla", value: "#a855f7" },
   { label: "Pink", value: "#ec4899" },
 ];
+
+/**
+ * Kopiér-tekst til udklipsholderen – med tal/punkter.
+ *
+ * Punkterne/tallene i en liste er kun VISUELLE (CSS ::marker) – de findes
+ * ikke som rigtig tekst i dokumentet. ProseMirrors indbyggede kopiering
+ * (som Tiptap bruger) laver derfor plain-text-udklip UDEN dem, så en
+ * indsat "1. Teknisk gennemgang / 2. Tjek parkeringssensorer …" blev limet
+ * ind andre steder (SMS, Notes-app, WhatsApp) som blot to linjer uden tal.
+ *
+ * Denne funktion overstyrer den tekst, der lægges i udklipsholderen ved
+ * kopiering/klipning (editorProps.clipboardTextSerializer nedenfor), og
+ * bygger "1. ", "2. " / "• " ind som RIGTIG tekst, så den følger med uanset
+ * hvor man limer ind. Selve dokumentet/den viste liste røres ikke – kun det,
+ * der havner i udklipsholderen.
+ */
+function serializeListsToPlainText(fragment: Fragment): string {
+  const lines: string[] = [];
+  const indent = (depth: number) => "  ".repeat(depth);
+
+  function walkFragment(frag: Fragment, depth: number) {
+    frag.forEach((node) => walkNode(node, depth));
+  }
+
+  function walkListItem(item: PMNode, depth: number, marker: string) {
+    let markerUsed = false;
+    item.forEach((child) => {
+      if (child.type.name === "orderedList" || child.type.name === "bulletList") {
+        walkNode(child, depth + 1);
+      } else if (child.isTextblock) {
+        lines.push(indent(depth) + (markerUsed ? "" : marker) + child.textContent);
+        markerUsed = true;
+      } else {
+        walkFragment(child.content, depth);
+      }
+    });
+  }
+
+  function walkNode(node: PMNode, depth: number) {
+    if (node.type.name === "orderedList") {
+      // Nummereringen genstarter fra listens egen start-værdi (normalt 1).
+      // Ved kopiering af et UDSNIT midt i en liste (ikke hele listen) kan
+      // ProseMirror ikke altid genskabe det oprindelige tal – det er en
+      // kendt begrænsning, men at kopiere HELE listen/noten (det almindelige
+      // tilfælde) giver altid korrekte tal.
+      let n = (node.attrs.start as number | undefined) ?? 1;
+      node.forEach((item) => {
+        walkListItem(item, depth, `${n}. `);
+        n++;
+      });
+      return;
+    }
+    if (node.type.name === "bulletList") {
+      node.forEach((item) => walkListItem(item, depth, "• "));
+      return;
+    }
+    if (node.isTextblock) {
+      lines.push(indent(depth) + node.textContent);
+      return;
+    }
+    if (node.isBlock) {
+      walkFragment(node.content, depth);
+    }
+  }
+
+  walkFragment(fragment, 0);
+  return lines.join("\n");
+}
 
 /**
  * RichTextEditor – genbrugelig rig-tekst-editor (Tiptap) til alle "note"-
@@ -89,6 +158,9 @@ export function RichTextEditor({
           minHeightClassName,
         ),
       },
+      // Sikrer at "1. ", "2. " / "• " følger med, når man kopierer eller
+      // klipper tekst ud af en liste (se serializeListsToPlainText ovenfor).
+      clipboardTextSerializer: (slice) => serializeListsToPlainText(slice.content),
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
   });
