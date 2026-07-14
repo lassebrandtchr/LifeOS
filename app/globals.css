@@ -675,9 +675,29 @@
 .rte-content em {
   font-style: italic;
 }
+/* Tailwinds preflight nulstiller list-style på ul/ol globalt (list-style:
+   none), så punkter/tal SKAL sættes eksplicit her igen, ellers er listerne
+   usynlige – man ser kun linjeskift uden hverken • eller 1. 2. 3. */
 .rte-content ul,
 .rte-content ol {
-  margin: 0 0 0.5em 1.25em;
+  margin: 0 0 0.5em;
+  padding-left: 1.375em;
+}
+.rte-content ul {
+  list-style-type: disc;
+}
+.rte-content ol {
+  list-style-type: decimal;
+}
+.rte-content li {
+  margin: 0.15em 0;
+}
+.rte-content li p {
+  margin: 0; /* et list-punkt er selv en boks – dets indre afsnit skal ikke have ekstra luft */
+}
+/* Punkt/nummer i listens egen farve fra tema-paletten, ikke sort/hvid. */
+.rte-content li::marker {
+  color: var(--muted-foreground);
 }
 .rte-content .is-empty::before {
   content: attr(data-placeholder);

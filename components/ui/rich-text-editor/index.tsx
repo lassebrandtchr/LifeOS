@@ -5,7 +5,14 @@ import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Bold as BoldIcon, Italic as ItalicIcon, Heading2, Palette } from "lucide-react";
+import {
+  Bold as BoldIcon,
+  Italic as ItalicIcon,
+  Heading2,
+  Palette,
+  List as BulletListIcon,
+  ListOrdered as OrderedListIcon,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { FontSize } from "@/components/ui/rich-text-editor/font-size-mark";
@@ -169,6 +176,25 @@ function FormatControls({ editor }: { editor: Editor }) {
         label="Kursiv"
       >
         <ItalicIcon className="size-3.5" />
+      </ToolbarButton>
+      <div className="mx-1 h-4 w-px bg-border/60" />
+      {/* Punktopstilling/nummereret liste – StarterKit har allerede
+          bulletList/orderedList/listItem indbygget (incl. tastatur-logik:
+          Enter fortsætter listen, næste tal tælles automatisk op, tom linje +
+          Enter afslutter listen). Vi tilføjer bare knapperne til at slå det til. */}
+      <ToolbarButton
+        active={editor.isActive("bulletList")}
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        label="Punktliste"
+      >
+        <BulletListIcon className="size-3.5" />
+      </ToolbarButton>
+      <ToolbarButton
+        active={editor.isActive("orderedList")}
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        label="Nummereret liste"
+      >
+        <OrderedListIcon className="size-3.5" />
       </ToolbarButton>
       <div className="mx-1 h-4 w-px bg-border/60" />
       <select
