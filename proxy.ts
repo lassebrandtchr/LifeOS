@@ -19,7 +19,13 @@ export const config = {
      * - _next/static (build-filer)
      * - _next/image (billedoptimering)
      * - favicon og almindelige billedfiler
+     * - robots.txt/manifest.webmanifest – Next.js' egne metadata-ruter, som
+     *   søgemaskiner/browseren SKAL kunne hente uden login. Uden denne
+     *   undtagelse blev robots.txt omdirigeret 307 → /login, så en crawler
+     *   aldrig så "Disallow: /"-reglen (app/robots.ts) – den fik i stedet
+     *   en login-omdirigering, som ikke pålideligt tolkes som "må ikke
+     *   crawles" af alle søgemaskiner.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
