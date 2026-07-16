@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listCalendars, listEventsFromCalendar } from "@/lib/google/calendar";
-import { listGmailMessages } from "@/lib/google/gmail";
+import { listGmailMessages, GmailApiError } from "@/lib/google/gmail";
 import { listOutlookMessages, listOutlookEvents } from "@/lib/microsoft/graph";
 import {
   listNotionDatabases,
@@ -160,6 +160,13 @@ export async function syncGmailCore(
     // (fx udløbet token) i stedet for at give en tom liste – ellers ville
     // et fejlet kald blive fortolket som "tom indbakke", og den gamle,
     // stadig-forkerte cache ville aldrig blive opdateret eller flagget.
+    //
+    // Er det en GmailApiError, tager vi Googles EGEN forklaring (reason) med
+    // i fejlteksten, så syncGmail-action'en kan skelne "manglende scope" fra
+    // "API'et er slået fra" og give den rigtige handlingsanvisning.
+    if (e instanceof GmailApiError) {
+      return { source: "gmail", ok: false, error: `${e.message} ${e.reason}`.trim() };
+    }
     return { source: "gmail", ok: false, error: e instanceof Error ? e.message : "Synk fejlede." };
   }
 }

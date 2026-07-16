@@ -95,6 +95,7 @@ function AttachmentCard({ emailId, att }: { emailId: string; att: EmailAttachmen
 
   const isImage = att.mime.startsWith("image/");
   const isVideo = att.mime.startsWith("video/");
+  const isPdf = att.mime === "application/pdf" || /\.pdf$/i.test(att.name);
   const Icon = isImage ? ImageIcon : isVideo ? Film : FileText;
 
   // Objekt-URL'er ryddes op når kortet forsvinder.
@@ -112,24 +113,29 @@ function AttachmentCard({ emailId, att }: { emailId: string; att: EmailAttachmen
       return null;
     }
     const bytes = Uint8Array.from(atob(content.base64), (c) => c.charCodeAt(0));
-    const blob = new Blob([bytes], { type: content.mime });
+    // Foretræk mailens EGEN mime-type (att.mime) frem for serverens fallback:
+    // Gmail-vedhæftninger kommer tilbage som "application/octet-stream" fra
+    // serveren, og så ville en PDF/PNG hverken kunne vises korrekt eller få
+    // den rigtige type ved download. att.mime kender den rigtige type.
+    const mime = att.mime && att.mime !== "application/octet-stream" ? att.mime : content.mime;
+    const blob = new Blob([bytes], { type: mime });
     return {
       url: URL.createObjectURL(blob),
       name: att.name || content.name,
-      mime: content.mime,
+      mime,
     };
   }
 
   async function handleOpen() {
     if (loading) return;
-    // Billeder/video: vis preview inde i appen. Andet: download direkte.
+    // Billeder/video/PDF: vis preview inde i appen. Andet: download direkte.
     setLoading(true);
     const res = await fetchBlob();
     setLoading(false);
     if (!res) return;
-    if (isImage || isVideo) {
+    if (isImage || isVideo || isPdf) {
       setPreviewUrl(res.url);
-      setPreviewMime(res.mime);
+      setPreviewMime(isPdf ? "application/pdf" : res.mime);
     } else {
       triggerDownload(res.url, res.name);
     }
@@ -169,7 +175,7 @@ function AttachmentCard({ emailId, att }: { emailId: string; att: EmailAttachmen
           <span className="block truncate font-medium">{att.name}</span>
           <span className="block text-xs text-muted-foreground">
             {fmtSize(att.size)}
-            {isImage || isVideo ? " · klik for at se" : " · klik for at hente"}
+            {isImage || isVideo || isPdf ? " · klik for at se" : " · klik for at hente"}
           </span>
         </span>
         <span
@@ -196,6 +202,27 @@ function AttachmentCard({ emailId, att }: { emailId: string; att: EmailAttachmen
           controls
           className="mt-2 max-h-[50vh] w-full rounded-xl border border-border/60"
         />
+      )}
+      {previewUrl && previewMime === "application/pdf" && (
+        // PDF vises inde i appen. Objektet er en Blob-URL (samme oprindelse
+        // fra browserens synspunkt), så den indbyggede PDF-fremviser tegner den.
+        <object
+          data={previewUrl}
+          type="application/pdf"
+          className="mt-2 h-[70vh] w-full rounded-xl border border-border/60"
+        >
+          <p className="p-3 text-sm text-muted-foreground">
+            Kan ikke vise PDF her.{" "}
+            <button
+              type="button"
+              onClick={() => triggerDownload(previewUrl, att.name)}
+              className="font-medium text-primary underline"
+            >
+              Hent den i stedet
+            </button>
+            .
+          </p>
+        </object>
       )}
     </div>
   );

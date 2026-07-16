@@ -197,19 +197,51 @@ export async function syncGoogleCalendar(): Promise<IntegrationActionState> {
   }
 }
 
+/** Handlingsanvisning ved manglende Gmail-adgang – bruges begge steder nedenfor. */
+const GMAIL_RECONNECT =
+  "LifeOS har ikke adgang til din Gmail. Gå til Indstillinger → Gmail → Afbryd, " +
+  "og Forbind så igen. VIGTIGT: sæt flueben ved BÅDE Gmail og Kalender på " +
+  "Googles tilladelses-skærm (fjern ikke fluebenet ved Gmail).";
+
+const GMAIL_API_DISABLED =
+  "Gmail er ikke slået til i din Google Cloud-konto. Åbn Google Cloud Console → " +
+  "APIs & Services → Enable APIs → søg 'Gmail API' → Enable. Prøv så igen om et " +
+  "øjeblik.";
+
 /** Henter de seneste Gmail-mails ind i LifeOS (mail-pull). */
 export async function syncGmail(): Promise<IntegrationActionState> {
   const auth = await getAuth();
   if (!auth) return { error: NOT_READY };
 
-  const { getValidAccessToken } = await import("@/features/integrations/google");
+  const { getValidAccessToken, hasGmailScope } = await import(
+    "@/features/integrations/google"
+  );
   const { syncGmailCore } = await import("@/features/integrations/sync-core");
+  const { GmailApiError } = await import("@/lib/google/gmail");
 
   const token = await getValidAccessToken();
   if (!token) return { error: "Google er ikke forbundet endnu." };
 
+  // Blev Gmail-adgang overhovedet givet? Fanger den hyppigste 403-årsag FØR
+  // vi kalder Gmail – med en klar besked i stedet for en teknisk fejlkode.
+  if (!(await hasGmailScope())) {
+    return { error: GMAIL_RECONNECT };
+  }
+
   const res = await syncGmailCore(auth.supabase, auth.userId, token);
-  if (!res.ok) return { error: res.error ?? "Synkronisering fejlede." };
+  if (!res.ok) {
+    // Oversæt de to 403-årsager til hver sin handlingsanvisning. syncGmailCore
+    // videregiver GmailApiError'ens besked (og reason via error), så vi kan
+    // skelne "manglende scope" fra "API'et er slået fra".
+    const reason = (res.error ?? "").toLowerCase();
+    if (reason.includes("scope") || reason.includes("permission")) {
+      return { error: GMAIL_RECONNECT };
+    }
+    if (reason.includes("disabled") || reason.includes("has not been used")) {
+      return { error: GMAIL_API_DISABLED };
+    }
+    return { error: res.error ?? "Synkronisering fejlede." };
+  }
 
   revalidatePath("/mail");
   revalidatePath("/privat");

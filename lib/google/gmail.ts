@@ -9,6 +9,24 @@ import "server-only";
 
 const API = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+/**
+ * Fejl fra Gmail-API'et, der bærer Googles EGEN forklaring med, så vi kan
+ * skelne de to helt forskellige 403-årsager fra hinanden:
+ *   • "insufficient authentication scopes" → Gmail-adgang blev ikke givet ved
+ *     login (fluebenet ved Gmail var ikke sat) → løsning: forbind igen.
+ *   • "has not been used ... or it is disabled" → Gmail-API'et er ikke slået
+ *     til i Google Cloud-projektet → løsning: slå det til i Cloud Console.
+ */
+export class GmailApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly reason: string,
+  ) {
+    super(`Gmail-listekald fejlede (${status})`);
+    this.name = "GmailApiError";
+  }
+}
+
 export type GmailMessage = {
   id: string;
   subject: string;
@@ -41,7 +59,15 @@ export async function listGmailMessages(
     { headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!listRes.ok) {
-    throw new Error(`Gmail-listekald fejlede (${listRes.status})`);
+    // Læs Googles egen fejlbesked med, så kalderen kan oversætte den til en
+    // handlingsanvisning (se GmailApiError). Bodyen ser typisk sådan ud:
+    //   { "error": { "code": 403, "message": "Request had insufficient
+    //     authentication scopes.", "status": "PERMISSION_DENIED" } }
+    const reason = await listRes
+      .json()
+      .then((b) => (b?.error?.message as string) ?? "")
+      .catch(() => "");
+    throw new GmailApiError(listRes.status, reason);
   }
   const listData = await listRes.json();
   const ids = ((listData.messages ?? []) as { id: string }[]).map((m) => m.id);

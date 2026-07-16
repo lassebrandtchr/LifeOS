@@ -67,6 +67,20 @@ export async function isGoogleConnected(): Promise<boolean> {
   return Boolean(conn?.refreshToken);
 }
 
+/**
+ * Blev der givet Gmail-adgang, da Google blev forbundet?
+ *
+ * Når man forbinder Google, kan man fravælge enkelte tilladelser på
+ * samtykkeskærmen. Fravælger man Gmail (men beholder Kalender), gemmes en
+ * forbindelse UDEN gmail-scope – kalender virker, men Gmail giver 403. Vi
+ * læser den gemte scope-streng, så appen kan sige det præcist i stedet for
+ * bare "(403)".
+ */
+export async function hasGmailScope(): Promise<boolean> {
+  const conn = await getGoogleConnection();
+  return Boolean(conn?.scope && /gmail/i.test(conn.scope));
+}
+
 /** Gemmer (opretter/opdaterer) en forbindelse. */
 export async function saveGoogleConnection(
   auth: AuthedClient,

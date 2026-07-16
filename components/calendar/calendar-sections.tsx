@@ -3,13 +3,19 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Calendar as CalendarIcon, Settings2, MapPin, Sparkles } from "lucide-react";
+import { Calendar as CalendarIcon, Settings2, MapPin, Sparkles, AlignLeft } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { formatTime, dayKey, formatDayHeading } from "@/lib/date";
 import { getWorkspaceOrder } from "@/features/tasks/section-order";
+import { CalendarEventDetail } from "@/components/calendar/event-detail";
 import type { Workspace } from "@/features/tasks/constants";
 import type { CalendarEventItem } from "@/features/integrations/types";
+
+/** Har begivenheden noget, der er værd at åbne for (noter/sted)? */
+function hasDetail(event: CalendarEventItem): boolean {
+  return Boolean(event.description?.trim() || event.location?.trim());
+}
 
 const META: Record<Workspace, { emoji: string; label: string }> = {
   work: { emoji: "🚗", label: "Storgaard Biler" },
@@ -27,8 +33,16 @@ function tint(workspace: Workspace) {
 
 function EventRow({ event }: { event: CalendarEventItem }) {
   const isWork = event.workspace === "work";
+  const [open, setOpen] = React.useState(false);
+  const openable = hasDetail(event);
+
   return (
-    <div className="flex items-stretch gap-3 py-3">
+    <button
+      type="button"
+      onClick={() => setOpen(true)}
+      // Hele rækken kan klikkes → åbner begivenheden med noter/beskrivelse.
+      className="flex w-full items-stretch gap-3 py-3 text-left transition-colors hover:bg-secondary/40 focus:outline-none focus-visible:bg-secondary/40"
+    >
       <div className="w-16 shrink-0 pt-0.5 text-right">
         {event.allDay ? (
           <span className="text-xs text-muted-foreground">Hele dagen</span>
@@ -46,7 +60,13 @@ function EventRow({ event }: { event: CalendarEventItem }) {
       />
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">{event.title}</p>
+        <p className="flex items-center gap-1.5 font-medium">
+          <span className="truncate">{event.title}</span>
+          {/* Note-markør: viser ved et blik hvilke begivenheder der har noter. */}
+          {openable && event.description?.trim() && (
+            <AlignLeft className="size-3.5 shrink-0 text-muted-foreground" />
+          )}
+        </p>
         {event.location && (
           <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="size-3" />
@@ -54,6 +74,8 @@ function EventRow({ event }: { event: CalendarEventItem }) {
           </span>
         )}
       </div>
+
+      {open && <CalendarEventDetail event={event} onClose={() => setOpen(false)} />}
 
       {event.source === "lifeos" ? (
         <span
@@ -76,7 +98,7 @@ function EventRow({ event }: { event: CalendarEventItem }) {
           />
         </span>
       )}
-    </div>
+    </button>
   );
 }
 
