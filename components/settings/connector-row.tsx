@@ -11,6 +11,7 @@ import {
   setConnectorEnabled,
   disconnectGoogle,
   syncGoogleCalendar,
+  syncGmail,
   disconnectMicrosoft,
   syncMicrosoft,
   disconnectNotion,
@@ -75,6 +76,17 @@ export function ConnectorRow({
       const res = await syncGoogleCalendar();
       if (res?.error) toast.error(res.error, { duration: 8000 });
       else toast.success(res?.message ?? "Google Kalender synkroniseret ✓");
+    });
+  }
+
+  // syncGmail() har eksisteret i actions.ts (samme kode-sti som den
+  // automatiske baggrunds-synk bruger), men var aldrig koblet til nogen
+  // knap i UI'et – "Synkronisér" ud for Gmail var derfor slet ikke der.
+  function onSyncGmail() {
+    startTransition(async () => {
+      const res = await syncGmail();
+      if (res?.error) toast.error(res.error, { duration: 8000 });
+      else toast.success(res?.message ?? "Gmail synkroniseret ✓");
     });
   }
 
@@ -151,6 +163,15 @@ export function ConnectorRow({
       <div className="flex shrink-0 items-center gap-2">
         {connector.id === "google_calendar" && (
           <Button variant="outline" onClick={onSync} disabled={pending} className="gap-1.5">
+            <RefreshCw className={pending ? "size-4 animate-spin" : "size-4"} />
+            Synkronisér
+          </Button>
+        )}
+        {/* Gmail havde tidligere INGEN synk-knap her – kun Afbryd. syncGmail()
+            fandtes allerede som server-action (samme sti som baggrunds-
+            synken), men var aldrig koblet til noget i UI'et. */}
+        {connector.id === "gmail" && (
+          <Button variant="outline" onClick={onSyncGmail} disabled={pending} className="gap-1.5">
             <RefreshCw className={pending ? "size-4 animate-spin" : "size-4"} />
             Synkronisér
           </Button>
