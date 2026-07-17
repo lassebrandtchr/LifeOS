@@ -67,6 +67,8 @@ export type MailMessage = {
   snippet: string;
   from: string;
   isRead: boolean;
+  /** Har Lasse svaret på mailen? (styrer "Besvaret"-badgen) */
+  replied: boolean;
   /** Grov kategori sat af Mail AI (fx 'kunde', 'faktura') – kan være null. */
   category: string | null;
   /** Hvilken connector den kom fra ('gmail', 'outlook', ...). */

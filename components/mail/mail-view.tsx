@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Mail as MailIcon, Settings2 } from "lucide-react";
+import { Mail as MailIcon, Settings2, CornerUpLeft } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,8 +45,22 @@ function MailRow({ mail, onOpen }: { mail: MailMessage; onOpen: (m: MailMessage)
       tabIndex={0}
       onClick={() => onOpen(mail)}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(mail)}
-      className="flex cursor-pointer items-start gap-3 border-b border-border/50 px-1 py-3.5 transition-colors last:border-0 hover:bg-secondary/30"
+      className={cn(
+        "flex cursor-pointer items-start gap-3 border-b border-border/50 px-1 py-3.5 transition-colors last:border-0 hover:bg-secondary/30",
+        // ULÆST får en diskret farvet baggrund, så læst/ulæst er tydeligt
+        // adskilt ved et blik (ud over prikken + den fede skrift nedenfor).
+        !mail.isRead && "bg-primary/[0.04]",
+      )}
     >
+      {/* Læst/ulæst-markør: udfyldt farvet prik = ULÆST, tom ring = læst. */}
+      <span className="mt-2 flex w-2 shrink-0 justify-center" aria-hidden>
+        {mail.isRead ? (
+          <span className="size-2 rounded-full border border-muted-foreground/40" />
+        ) : (
+          <span className="size-2 rounded-full bg-primary" />
+        )}
+      </span>
+
       <span
         aria-hidden
         className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-white shadow-sm"
@@ -61,7 +75,12 @@ function MailRow({ mail, onOpen }: { mail: MailMessage; onOpen: (m: MailMessage)
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-3">
-          <p className={cn("truncate font-medium", !mail.isRead && "font-semibold")}>
+          <p
+            className={cn(
+              "truncate",
+              mail.isRead ? "font-medium text-muted-foreground" : "font-semibold text-foreground",
+            )}
+          >
             {mail.subject}
           </p>
           <span className="shrink-0 text-xs text-muted-foreground">
@@ -72,11 +91,19 @@ function MailRow({ mail, onOpen }: { mail: MailMessage; onOpen: (m: MailMessage)
         <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground/80">{mail.snippet}</p>
       </div>
 
-      {cat && (
-        <Badge variant={cat.variant} className="mt-0.5 shrink-0">
-          {cat.label}
-        </Badge>
-      )}
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {mail.replied && (
+          <Badge variant="success" className="gap-1 text-[10px]">
+            <CornerUpLeft className="size-2.5" />
+            Besvaret
+          </Badge>
+        )}
+        {cat && (
+          <Badge variant={cat.variant} className="text-[10px]">
+            {cat.label}
+          </Badge>
+        )}
+      </div>
     </div>
   );
 }

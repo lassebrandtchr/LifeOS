@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Reply, Send, X, Tag, Check } from "lucide-react";
+import { Loader2, Reply, Send, X, Tag, Check, CornerUpLeft } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -12,12 +12,19 @@ import { Badge } from "@/components/ui/badge";
 import { EmailBody } from "@/components/mail/email-body";
 import { categoryById, MAIL_CATEGORIES } from "@/features/integrations/categorize";
 import {
-  getEmailDetail,
+  getEmailThread,
   sendEmailReply,
   setEmailCategory,
-  type EmailDetail,
+  type EmailThread,
 } from "@/features/mail/actions";
 import type { MailMessage } from "@/features/integrations/types";
+
+/** "Karl Hansen <k@x.dk>" → "Karl Hansen"; ellers adressen. */
+function senderName(from: string | null): string {
+  if (!from) return "Ukendt afsender";
+  const m = from.match(/^\s*"?([^"<]+?)"?\s*</);
+  return (m ? m[1] : from).trim();
+}
 
 /**
  * MailReaderDrawer – fuld mail-læser. Åbner mailen i en STOR, CENTRERET modal
@@ -40,7 +47,7 @@ export function MailReaderDrawer({
   const [showReply, setShowReply] = React.useState(false);
   const [replyText, setReplyText] = React.useState("");
   const [sending, setSending] = React.useState(false);
-  const [detail, setDetail] = React.useState<EmailDetail | null>(null);
+  const [thread, setThread] = React.useState<EmailThread | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
 
@@ -53,10 +60,10 @@ export function MailReaderDrawer({
 
   React.useEffect(() => {
     let active = true;
-    getEmailDetail(mail.id)
-      .then((d) => {
+    getEmailThread(mail.id)
+      .then((t) => {
         if (!active) return;
-        setDetail(d);
+        setThread(t);
         setLoading(false);
       })
       .catch(() => {
@@ -143,6 +150,12 @@ export function MailReaderDrawer({
                     Ulæst
                   </span>
                 )}
+                {(thread?.repliedByUser || mail.replied) && (
+                  <span className="inline-flex items-center gap-1 rounded bg-success/15 px-1.5 py-0.5 text-[10px] font-semibold text-success">
+                    <CornerUpLeft className="size-3" />
+                    Besvaret
+                  </span>
+                )}
 
                 {/* Manuel kategori-vælger */}
                 <div className="relative">
@@ -210,20 +223,51 @@ export function MailReaderDrawer({
             </button>
           </div>
 
-          {/* Brødtekst + vedhæftninger – fylder al resterende plads */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 sm:px-6">
+          {/* Hele samtalen (tråd) – hver besked som sit eget kort. Egne svar
+              (fromMe) får en grøn accent, så man tydeligt ser frem-og-tilbag. */}
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
-                Henter mail…
+                Henter samtale…
               </div>
-            ) : failed || !detail ? (
+            ) : failed || !thread || thread.messages.length === 0 ? (
               <p className="text-sm text-destructive">
                 Kunne ikke hente mail-indhold. Tjek at {isWork ? "Outlook" : "Gmail"} er forbundet
                 under Indstillinger → Integrationer.
               </p>
             ) : (
-              <EmailBody detail={detail} tall />
+              thread.messages.map((m, i) => (
+                <div
+                  key={m.messageId}
+                  className={cn(
+                    "rounded-2xl border p-4",
+                    m.fromMe
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-border/60 bg-secondary/20",
+                  )}
+                >
+                  <div className="mb-2.5 flex items-center justify-between gap-3">
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      {m.fromMe && <CornerUpLeft className="size-3.5 text-primary" />}
+                      <span className={cn(m.fromMe && "text-primary")}>
+                        {m.fromMe ? "Dig" : senderName(m.from)}
+                      </span>
+                    </p>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {formatDateTime(m.date)}
+                    </span>
+                  </div>
+                  <EmailBody
+                    emailId={mail.id}
+                    message={m}
+                    tall={thread.messages.length === 1}
+                  />
+                  {i < thread.messages.length - 1 && (
+                    <div className="mt-1 h-px bg-transparent" />
+                  )}
+                </div>
+              ))
             )}
           </div>
 

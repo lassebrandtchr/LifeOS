@@ -108,6 +108,8 @@ export async function getMailMessages(limit = 50): Promise<MailMessage[]> {
         snippet: (r.snippet as string | null) ?? "",
         from: (r.from_addr as string | null) ?? "",
         isRead: Boolean(r.is_read),
+        // Defensiv: kolonnen 'replied' findes måske ikke endnu (migration 0017).
+        replied: Boolean(r.replied),
         category: (r.category as string | null) ?? null,
         source,
         workspace,

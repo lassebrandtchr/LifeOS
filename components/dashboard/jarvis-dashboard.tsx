@@ -422,7 +422,21 @@ function EmailDrawer({
           ) : loadError ? (
             <p className="text-sm text-destructive">Kunne ikke hente mail-indhold.</p>
           ) : detail ? (
-            <EmailBody detail={detail} />
+            <EmailBody
+              emailId={email.id}
+              message={{
+                // Forsidens hurtig-preview viser kun den ÅBNEDE mail (ikke hele
+                // tråden). Vi pakker EmailDetail ind som én ThreadMessage, så den
+                // deler samme visnings-/vedhæftnings-komponent som mail-siden.
+                messageId: detail.external_id ?? "",
+                from: detail.from_addr,
+                date: detail.received_at,
+                fromMe: false,
+                bodyHtml: detail.bodyHtml,
+                body: detail.body,
+                attachments: detail.attachments,
+              }}
+            />
           ) : (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
               {email.snippet}
