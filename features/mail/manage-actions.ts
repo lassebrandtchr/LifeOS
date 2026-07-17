@@ -228,19 +228,25 @@ export async function getGmailFolders(): Promise<{
   folders: GmailFolder[];
   error?: string;
 }> {
-  const a = await auth();
-  if (!a) return { folders: [], error: "ikke logget ind" };
+  // ALT er inde i try (også auth()), så denne server-action ALDRIG kaster en
+  // 500 op til klienten – den returnerer i stedet en pæn fejl. En 500 på
+  // POST /mail var netop symptomet: getGmailFolders (en server-action) kastede
+  // ukontrolleret. console.error sikrer, at den rigtige stak stadig ses i
+  // Vercel-loggen.
   try {
+    const a = await auth();
+    if (!a) return { folders: [], error: "ikke logget ind" };
     const token = await getValidAccessToken();
     if (!token) return { folders: [], error: "forbindelse udløbet" };
     const folders = await listGmailFolders(token);
     return { folders };
   } catch (e) {
+    console.error("[getGmailFolders] fejlede:", e);
     const { GmailApiError } = await import("@/lib/google/gmail");
     if (e instanceof GmailApiError) {
       return { folders: [], error: `${e.status}: ${e.reason || "ukendt Gmail-fejl"}` };
     }
-    return { folders: [], error: "netværksfejl" };
+    return { folders: [], error: e instanceof Error ? e.message : "netværksfejl" };
   }
 }
 

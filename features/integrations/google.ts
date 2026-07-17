@@ -79,11 +79,17 @@ export async function isGoogleConnected(): Promise<boolean> {
 export type GoogleHealth = "notConfigured" | "notConnected" | "expired" | "ok";
 
 export async function getGoogleHealth(): Promise<GoogleHealth> {
-  if (!isGoogleConfigured()) return "notConfigured";
-  const conn = await getGoogleConnection();
-  if (!conn?.refreshToken) return "notConnected";
-  const token = await getValidAccessToken();
-  return token ? "ok" : "expired";
+  try {
+    if (!isGoogleConfigured()) return "notConfigured";
+    const conn = await getGoogleConnection();
+    if (!conn?.refreshToken) return "notConnected";
+    const token = await getValidAccessToken();
+    return token ? "ok" : "expired";
+  } catch (e) {
+    // Må ALDRIG kaste – kaldes fra en server-action ved hver /mail-load.
+    console.error("[getGoogleHealth] fejlede:", e);
+    return "expired";
+  }
 }
 
 /**

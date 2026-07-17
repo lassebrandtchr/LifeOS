@@ -96,31 +96,17 @@ export async function listGmailFolders(accessToken: string): Promise<GmailFolder
       l.labelListVisibility !== "labelHide",
   );
 
-  const folders = await Promise.all(
-    wanted.map(async (l) => {
-      let unread = 0;
-      let total = 0;
-      try {
-        const d = await fetch(`${API}/labels/${l.id}`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (d.ok) {
-          const j = await d.json();
-          unread = (j.messagesUnread as number) ?? 0;
-          total = (j.messagesTotal as number) ?? 0;
-        }
-      } catch {
-        /* antal er ikke kritisk */
-      }
-      return {
-        id: l.id,
-        name: l.type === "user" ? l.name : SYSTEM_LABEL_NAMES[l.id] ?? l.name,
-        type: (l.type === "user" ? "user" : "system") as "system" | "user",
-        unread,
-        total,
-      };
-    }),
-  );
+  // VIGTIGT: hent IKKE antal pr. mappe med et kald pr. label. Det gav 30-40
+  // ekstra forespørgsler, som kunne overskride serverless-funktionens tidsloft
+  // og give en 500-fejl. Ét /labels-kald er nok til at vise mapperne (uden
+  // ulæst-tal). Mappe-listen er det vigtige; tallene var kun pynt.
+  const folders: GmailFolder[] = wanted.map((l) => ({
+    id: l.id,
+    name: (l.type === "user" ? l.name : SYSTEM_LABEL_NAMES[l.id] ?? l.name) ?? l.id,
+    type: (l.type === "user" ? "user" : "system") as "system" | "user",
+    unread: 0,
+    total: 0,
+  }));
 
   // Systemmapper først (Indbakke øverst), derefter egne mapper alfabetisk.
   const order = ["INBOX", "STARRED", "IMPORTANT", "SENT", "DRAFT", "SPAM", "TRASH"];
@@ -129,7 +115,7 @@ export async function listGmailFolders(accessToken: string): Promise<GmailFolder
     if (a.type === "system") {
       return (order.indexOf(a.id) + 1 || 99) - (order.indexOf(b.id) + 1 || 99);
     }
-    return a.name.localeCompare(b.name, "da");
+    return (a.name ?? "").localeCompare(b.name ?? "", "da");
   });
 }
 

@@ -111,14 +111,18 @@ export async function syncGoogleCalendarCore(
     if (rows.length === 0) {
       return { source: "google_calendar", ok: true, count: 0 };
     }
+    // Slet ALLE Google-events (ikke kun tidsvinduet) før genindsæt – ellers
+    // fejler insert'et på unik-indekset (user_id, external_id) pga. gamle
+    // rækker uden for vinduet. Se den udførlige forklaring i actions.ts.
     await supabase
       .from("calendar_events")
       .delete()
       .eq("user_id", userId)
-      .eq("source", "google_calendar")
-      .gte("starts_at", from)
-      .lte("starts_at", to);
-    await supabase.from("calendar_events").insert(rows);
+      .eq("source", "google_calendar");
+    const { error: insErr } = await supabase.from("calendar_events").insert(rows);
+    if (insErr) {
+      return { source: "google_calendar", ok: false, error: insErr.message };
+    }
     await markSynced(supabase, userId, "google_calendar");
     return { source: "google_calendar", ok: true, count: rows.length };
   } catch {

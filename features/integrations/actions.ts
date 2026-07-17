@@ -200,14 +200,21 @@ export async function syncGoogleCalendar(): Promise<IntegrationActionState> {
     if (rows.length === 0) {
       return { error: "Hentede ingen aftaler fra Google – intet blev ændret." };
     }
+    // Slet ALLE Google-kalender-events (ikke kun et tidsvindue) før genindsæt –
+    // PRÆCIS som Gmail-synken gør. Den tidligere VINDUES-sletning efterlod
+    // gamle rækker uden for vinduet med samme external_id, og så fejlede hele
+    // insert'et på unik-indekset (user_id, external_id) – ATOMISK, så INGEN af
+    // de 160 aftaler blev gemt. Fejlen blev ikke tjekket, så toasten sagde
+    // "160 hentet", mens databasen var tom → 0 kommende aftaler.
     await auth.supabase
       .from("calendar_events")
       .delete()
       .eq("user_id", auth.userId)
-      .eq("source", "google_calendar")
-      .gte("starts_at", from)
-      .lte("starts_at", to);
-    await auth.supabase.from("calendar_events").insert(rows);
+      .eq("source", "google_calendar");
+    const { error: insErr } = await auth.supabase.from("calendar_events").insert(rows);
+    if (insErr) {
+      return { error: `Kunne ikke gemme aftalerne: ${insErr.message}` };
+    }
 
     await auth.supabase
       .from("integrations")
