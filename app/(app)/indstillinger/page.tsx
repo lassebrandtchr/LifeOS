@@ -13,6 +13,7 @@ import { isNotionConnected } from "@/features/integrations/notion";
 import { IntegrationCenter } from "@/components/settings/integration-center";
 import { ThemePicker } from "@/components/settings/theme-picker";
 import { GoogleFlash, MicrosoftFlash } from "@/components/settings/google-flash";
+import { GoogleDiagnostics } from "@/components/settings/google-diagnostics";
 
 export const metadata = { title: "Indstillinger" };
 
@@ -90,6 +91,8 @@ export default async function IndstillingerPage({
         microsoftConnected={microsoftConnected}
         notionConnected={notionConnected}
       />
+
+      <GoogleDiagnostics />
 
       {/* Sikkerhed */}
       <section className="rounded-2xl border border-border/60 bg-card p-6 shadow-soft">
