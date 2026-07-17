@@ -572,6 +572,33 @@ export async function getEmailDetail(emailId: string): Promise<EmailDetail | nul
   return base;
 }
 
+/**
+ * Som getEmailThread, men ud fra et Gmail-besked-id DIREKTE (uden en DB-række).
+ * Bruges når man åbner en mail fra en Gmail-MAPPE (mappens mails er ikke synket
+ * ned i databasen – de læses live fra Gmail).
+ */
+export async function getEmailThreadByExternalId(
+  externalId: string,
+): Promise<EmailThread | null> {
+  try {
+    const token = await getValidAccessToken();
+    if (!token) return null;
+    const { getGoogleConnection } = await import("@/features/integrations/google");
+    const conn = await getGoogleConnection();
+    const t = await loadGmailThread(token, externalId, conn?.email ?? null);
+    return {
+      id: externalId,
+      subject: null, // headeren i læseren bruger mailens egne felter
+      workspace: "private",
+      external_id: externalId,
+      messages: t.messages,
+      repliedByUser: t.repliedByUser,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type AttachmentContent = {
   name: string;
   mime: string;

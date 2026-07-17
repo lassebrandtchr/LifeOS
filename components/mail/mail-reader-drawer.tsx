@@ -2,8 +2,12 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Reply, Send, X, Tag, Check, CornerUpLeft, Receipt, FileSearch } from "lucide-react";
+import {
+  Loader2, Reply, Send, X, Tag, Check, CornerUpLeft, Receipt, FileSearch,
+  Archive, Trash2, Forward,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -13,6 +17,7 @@ import { EmailBody } from "@/components/mail/email-body";
 import { categoryById, MAIL_CATEGORIES } from "@/features/integrations/categorize";
 import {
   getEmailThread,
+  getEmailThreadByExternalId,
   sendEmailReply,
   setEmailCategory,
   type EmailThread,
@@ -22,6 +27,7 @@ import {
   setInvoiceDueDate,
   extractInvoiceDueDateFromPdf,
 } from "@/features/mail/invoice-actions";
+import { archiveEmail, trashEmail, forwardEmail } from "@/features/mail/manage-actions";
 import { parseDanishDueDate } from "@/lib/invoice/due-date";
 import type { MailMessage } from "@/features/integrations/types";
 
@@ -45,10 +51,15 @@ function senderName(from: string | null): string {
 export function MailReaderDrawer({
   mail,
   onClose,
+  readOnly = false,
 }: {
   mail: MailMessage;
   onClose: () => void;
+  /** Åbnet fra en Gmail-MAPPE (ikke synket indbakke): kun læsning, ingen
+   *  handlinger der kræver en database-række (svar/arkivér/kategori/faktura). */
+  readOnly?: boolean;
 }) {
+  const router = useRouter();
   const [mounted, setMounted] = React.useState(false);
   const [showReply, setShowReply] = React.useState(false);
   const [replyText, setReplyText] = React.useState("");
@@ -56,6 +67,55 @@ export function MailReaderDrawer({
   const [thread, setThread] = React.useState<EmailThread | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [failed, setFailed] = React.useState(false);
+
+  // Håndtér-handlinger (arkivér/slet/videresend).
+  const [busy, setBusy] = React.useState<null | "archive" | "trash">(null);
+  const [showForward, setShowForward] = React.useState(false);
+  const [forwardTo, setForwardTo] = React.useState("");
+  const [forwardNote, setForwardNote] = React.useState("");
+  const [forwarding, setForwarding] = React.useState(false);
+
+  async function handleArchive() {
+    setBusy("archive");
+    const res = await archiveEmail(mail.id).catch(() => ({ error: "fejl" }));
+    setBusy(null);
+    if ((res as { error?: string })?.error) {
+      toast.error((res as { error?: string }).error ?? "Kunne ikke arkivere.");
+      return;
+    }
+    toast.success("Mail arkiveret ✓");
+    onClose();
+    router.refresh();
+  }
+
+  async function handleTrash() {
+    if (!confirm("Flyt denne mail til Gmails papirkurv?")) return;
+    setBusy("trash");
+    const res = await trashEmail(mail.id).catch(() => ({ error: "fejl" }));
+    setBusy(null);
+    if ((res as { error?: string })?.error) {
+      toast.error((res as { error?: string }).error ?? "Kunne ikke slette.");
+      return;
+    }
+    toast.success("Mail flyttet til papirkurv ✓");
+    onClose();
+    router.refresh();
+  }
+
+  async function handleForward() {
+    if (!forwardTo.trim() || forwarding) return;
+    setForwarding(true);
+    const res = await forwardEmail(mail.id, forwardTo, forwardNote);
+    setForwarding(false);
+    if (res?.error) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Mail videresendt ✓");
+    setShowForward(false);
+    setForwardTo("");
+    setForwardNote("");
+  }
 
   // Kategori-vælger (manuel).
   const [category, setCategory] = React.useState<string | null>(mail.category ?? null);
@@ -66,7 +126,10 @@ export function MailReaderDrawer({
 
   React.useEffect(() => {
     let active = true;
-    getEmailThread(mail.id)
+    const load = readOnly
+      ? getEmailThreadByExternalId(mail.externalId ?? mail.id)
+      : getEmailThread(mail.id);
+    load
       .then((t) => {
         if (!active) return;
         setThread(t);
@@ -80,7 +143,7 @@ export function MailReaderDrawer({
     return () => {
       active = false;
     };
-  }, [mail.id]);
+  }, [mail.id, mail.externalId, readOnly]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -163,7 +226,8 @@ export function MailReaderDrawer({
                   </span>
                 )}
 
-                {/* Manuel kategori-vælger */}
+                {/* Manuel kategori-vælger (kræver DB-række → skjult i mappe-visning) */}
+                {!readOnly && (
                 <div className="relative">
                   <button
                     type="button"
@@ -210,6 +274,7 @@ export function MailReaderDrawer({
                     </>
                   )}
                 </div>
+                )}
               </div>
               <h2 className="text-lg font-semibold leading-snug [overflow-wrap:anywhere]">
                 {mail.subject || "(uden emne)"}
@@ -219,14 +284,52 @@ export function MailReaderDrawer({
               </p>
               <p className="text-xs text-muted-foreground">{formatDateTime(mail.receivedAt)}</p>
             </div>
-            <button
-              type="button"
-              aria-label="Luk"
-              onClick={onClose}
-              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              <X className="size-5" />
-            </button>
+            <div className="flex shrink-0 items-center gap-1">
+              {/* Arkivér / Videresend / Slet – kun for Gmail (privat), og ikke
+                  når mailen er åbnet skrivebeskyttet fra en mappe. */}
+              {!isWork && !readOnly && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Arkivér"
+                    title="Arkivér (fjern fra indbakken)"
+                    onClick={handleArchive}
+                    disabled={busy !== null}
+                    className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-50"
+                  >
+                    {busy === "archive" ? <Loader2 className="size-4.5 animate-spin" /> : <Archive className="size-4.5" />}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Videresend"
+                    title="Videresend"
+                    onClick={() => setShowForward((v) => !v)}
+                    className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  >
+                    <Forward className="size-4.5" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Slet"
+                    title="Slet (flyt til papirkurv)"
+                    onClick={handleTrash}
+                    disabled={busy !== null}
+                    className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                  >
+                    {busy === "trash" ? <Loader2 className="size-4.5 animate-spin" /> : <Trash2 className="size-4.5" />}
+                  </button>
+                  <span className="mx-1 h-6 w-px bg-border/60" />
+                </>
+              )}
+              <button
+                type="button"
+                aria-label="Luk"
+                onClick={onClose}
+                className="flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
           </div>
 
           {/* Hele samtalen (tråd) – hver besked som sit eget kort. Egne svar
@@ -277,10 +380,59 @@ export function MailReaderDrawer({
             )}
           </div>
 
-          {/* Faktura-panel – kun for mails kategoriseret som 'faktura'. */}
-          {mail.category === "faktura" && <InvoicePanel mail={mail} />}
+          {/* Videresend-panel */}
+          {showForward && !readOnly && (
+            <div className="space-y-2 border-t border-border/60 bg-secondary/20 px-5 py-3.5 sm:px-6">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Forward className="size-4 text-primary" />
+                Videresend
+              </div>
+              <input
+                type="email"
+                value={forwardTo}
+                onChange={(e) => setForwardTo(e.target.value)}
+                placeholder="Modtagerens e-mail"
+                autoComplete="off"
+                className="w-full rounded-lg border border-border/60 bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              />
+              <textarea
+                value={forwardNote}
+                onChange={(e) => setForwardNote(e.target.value)}
+                placeholder="Tilføj en besked (valgfri) – den originale mail sendes med."
+                rows={2}
+                className="w-full resize-y rounded-lg border border-border/60 bg-background px-3 py-2 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForward(false)}
+                  className="rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary"
+                >
+                  Annullér
+                </button>
+                <button
+                  type="button"
+                  onClick={handleForward}
+                  disabled={forwarding || !forwardTo.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-opacity disabled:opacity-50"
+                >
+                  {forwarding ? <Loader2 className="size-3.5 animate-spin" /> : <Send className="size-3.5" />}
+                  Videresend
+                </button>
+              </div>
+            </div>
+          )}
 
-          {/* Svar */}
+          {/* Faktura-panel – kun for mails kategoriseret som 'faktura'. */}
+          {mail.category === "faktura" && !readOnly && <InvoicePanel mail={mail} />}
+
+          {/* Svar (skjult i skrivebeskyttet mappe-visning) */}
+          {readOnly ? (
+            <div className="border-t border-border/60 px-5 py-3 text-center text-xs text-muted-foreground sm:px-6">
+              Åbnet fra en mappe – kun læsning. Åbn mailen i indbakken for at
+              svare, arkivere eller videresende.
+            </div>
+          ) : (
           <div className="border-t border-border/60 px-5 py-4 sm:px-6">
             {showReply ? (
               <div className="space-y-2">
@@ -322,6 +474,7 @@ export function MailReaderDrawer({
               </button>
             )}
           </div>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>,
