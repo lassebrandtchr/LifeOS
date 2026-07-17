@@ -3,6 +3,7 @@ import { Calendar } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
 import { CalendarSections } from "@/components/calendar/calendar-sections";
 import { NewEventDialog } from "@/components/calendar/new-event-dialog";
+import { CalendarSyncButton } from "@/components/calendar/calendar-sync-button";
 import { getCalendarEvents } from "@/features/integrations/queries";
 import { getWorkspaceOrder } from "@/features/tasks/section-order";
 import type { Workspace } from "@/features/tasks/constants";
@@ -32,11 +33,14 @@ export default async function KalenderPage({
         description="Aftaler og begivenheder fra privat og Storgaard Biler."
         icon={Calendar}
         action={
-          <NewEventDialog
-            initialTitle={ny || undefined}
-            initialWorkspace={initialWorkspace}
-            autoOpen={autoOpen}
-          />
+          <div className="flex items-center gap-2">
+            <CalendarSyncButton variant="outline" />
+            <NewEventDialog
+              initialTitle={ny || undefined}
+              initialWorkspace={initialWorkspace}
+              autoOpen={autoOpen}
+            />
+          </div>
         }
       />
       <CalendarSections events={events} initialOrder={initialOrder} />

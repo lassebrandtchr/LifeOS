@@ -152,6 +152,17 @@ export async function syncGoogleCalendar(): Promise<IntegrationActionState> {
             "Google Kalender er ikke slået til i din Google Cloud-konto. Åbn Google Cloud Console → APIs & Services → Enable APIs → søg 'Google Calendar API' → Enable. Prøv så igen om et øjeblik.",
         };
       }
+      if (
+        reason.includes("insufficient") ||
+        reason.includes("scope") ||
+        reason.includes("permission") ||
+        probe.status === 403
+      ) {
+        return {
+          error:
+            "LifeOS mangler adgang til din Google Kalender (tilladelsen blev ikke givet ved login). Gå til Indstillinger → Google Kalender → Afbryd → Forbind igen, og sæt flueben ved BÅDE Kalender og Gmail.",
+        };
+      }
       return {
         error:
           "Kunne ikke læse dine kalendere. Gå til Indstillinger → Google Kalender → Afbryd, og Forbind så igen for at give adgang til ALLE dine kalendere.",

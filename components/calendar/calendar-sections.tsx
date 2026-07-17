@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { formatTime, dayKey, formatDayHeading } from "@/lib/date";
 import { getWorkspaceOrder } from "@/features/tasks/section-order";
 import { CalendarEventDetail } from "@/components/calendar/event-detail";
+import { CalendarSyncButton } from "@/components/calendar/calendar-sync-button";
 import type { Workspace } from "@/features/tasks/constants";
 import type { CalendarEventItem } from "@/features/integrations/types";
 
@@ -192,24 +193,39 @@ export function CalendarSections({
     .sort((a, b) => (a.startsAt ?? "").localeCompare(b.startsAt ?? ""));
 
   if (upcoming.length === 0) {
+    // Har vi aftaler i databasen, men ingen KOMMENDE? Så virker synken – de er
+    // bare alle i fortiden. Det siger vi tydeligt (i stedet for "forbind"),
+    // så man ikke jagter et forbindelsesproblem, der ikke findes.
+    const hasPast = events.length > 0;
     return (
       <div className="rounded-2xl border border-border/60 bg-card p-6 shadow-soft">
         <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
           <span className="flex size-12 items-center justify-center rounded-xl bg-secondary text-primary">
             <CalendarIcon className="size-6" />
           </span>
-          <p className="max-w-md text-sm text-muted-foreground">
-            Ingen kommende aftaler. Forbind <strong>Google Kalender</strong> under
-            Indstillinger → Integrationer, eller opret en begivenhed med knappen
-            ovenfor.
-          </p>
-          <Link
-            href="/indstillinger"
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary"
-          >
-            <Settings2 className="size-4" />
-            Åbn Integrationer
-          </Link>
+          {hasPast ? (
+            <p className="max-w-md text-sm text-muted-foreground">
+              Ingen <strong>kommende</strong> aftaler lige nu – men du har{" "}
+              {events.length} tidligere. Tryk <strong>Synkronisér</strong> for at
+              hente de nyeste aftaler fra Google.
+            </p>
+          ) : (
+            <p className="max-w-md text-sm text-muted-foreground">
+              Ingen aftaler endnu. Tryk <strong>Synkronisér</strong> for at hente
+              fra Google Kalender – eller forbind den under Indstillinger →
+              Integrationer.
+            </p>
+          )}
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <CalendarSyncButton />
+            <Link
+              href="/indstillinger"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-secondary"
+            >
+              <Settings2 className="size-4" />
+              Åbn Integrationer
+            </Link>
+          </div>
         </div>
       </div>
     );
