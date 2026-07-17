@@ -24,11 +24,11 @@ import {
  * Mail-HTML er designet til hvid baggrund, så iframen er altid hvid – præcis
  * som Gmail/Outlook selv gør i dark mode.
  */
-export function EmailBody({ detail }: { detail: EmailDetail }) {
+export function EmailBody({ detail, tall = false }: { detail: EmailDetail; tall?: boolean }) {
   return (
     <div className="space-y-4">
       {detail.bodyHtml ? (
-        <HtmlFrame html={detail.bodyHtml} />
+        <HtmlFrame html={detail.bodyHtml} tall={tall} />
       ) : detail.body ? (
         <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
           {detail.body}
@@ -57,7 +57,7 @@ export function EmailBody({ detail }: { detail: EmailDetail }) {
   );
 }
 
-function HtmlFrame({ html }: { html: string }) {
+function HtmlFrame({ html, tall = false }: { html: string; tall?: boolean }) {
   const srcDoc = React.useMemo(
     () =>
       `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>
@@ -76,7 +76,12 @@ function HtmlFrame({ html }: { html: string }) {
       sandbox="allow-popups allow-popups-to-escape-sandbox"
       referrerPolicy="no-referrer"
       title="Mail-indhold"
-      className="h-[55vh] min-h-72 w-full rounded-xl border border-border/60 bg-white"
+      className={cn(
+        "w-full rounded-xl border border-border/60 bg-white",
+        // I den store, centrerede modal fylder brødteksten næsten hele
+        // højden; ellers en fast, komfortabel højde.
+        tall ? "h-[68vh] min-h-96" : "h-[55vh] min-h-72",
+      )}
     />
   );
 }

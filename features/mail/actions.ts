@@ -1,9 +1,12 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/features/integrations/google";
 import { getValidMicrosoftToken } from "@/features/integrations/microsoft";
 import { getGmailSignature } from "@/lib/google/gmail";
+import { categoryById } from "@/features/integrations/categorize";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -336,6 +339,70 @@ export async function getEmailAttachment(
     return null;
   }
   return null;
+}
+
+/**
+ * Sætter (eller rydder) en mails kategori MANUELT.
+ *
+ *  1) Gemmer kategorien i databasen (vises straks som badge i mail-visningen).
+ *  2) Spejler den til Lasses EGEN Gmail-label, hvis kategorien har en (så den
+ *     også bliver synlig i selve Gmail). Rent additivt – der fjernes aldrig
+ *     mails eller andre labels, og fejler labelingen, gemmes kategorien
+ *     alligevel.
+ *
+ * @param categoryId  en gyldig kategori-id, eller null for "Ingen".
+ */
+export async function setEmailCategory(
+  emailId: string,
+  categoryId: string | null,
+): Promise<{ ok?: true; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Ikke logget ind." };
+
+  // Valider mod de kendte kategorier (undgå at gemme vilkårlig tekst).
+  const cat = categoryId ? categoryById(categoryId) : null;
+  if (categoryId && !cat) return { error: "Ukendt kategori." };
+
+  const { data, error } = await supabase
+    .from("emails")
+    .update({ category: cat?.id ?? null })
+    .eq("id", emailId)
+    .eq("user_id", user.id)
+    .select("external_id, source")
+    .maybeSingle();
+
+  if (error) return { error: error.message };
+
+  // Spejl til den rigtige Gmail-label (best effort – aldrig blokerende).
+  if (
+    cat?.gmailLabelId &&
+    data?.external_id &&
+    ((data.source as string | null) ?? "gmail") === "gmail"
+  ) {
+    try {
+      const token = await getValidAccessToken();
+      if (token) {
+        await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${data.external_id}/modify`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ addLabelIds: [cat.gmailLabelId] }),
+          },
+        );
+      }
+    } catch {
+      // Label kunne ikke sættes i Gmail – kategorien er stadig gemt i appen.
+    }
+  }
+
+  revalidatePath("/mail");
+  revalidatePath("/");
+  revalidatePath("/privat");
+  return { ok: true };
 }
 
 /** Sender et svar på en mail via Gmail (privat) eller Outlook (arbejde). */
