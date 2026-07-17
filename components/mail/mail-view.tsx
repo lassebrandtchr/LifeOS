@@ -30,6 +30,7 @@ import {
   getFolderEmails,
   moveEmailToFolder,
   recategorizeAllEmails,
+  googleHealth,
   type GmailFolder,
 } from "@/features/mail/manage-actions";
 import type { Workspace } from "@/features/tasks/constants";
@@ -203,6 +204,9 @@ export function MailView({
   // Mapper + mappevisning.
   const [folders, setFolders] = React.useState<GmailFolder[]>([]);
   const [foldersLoading, setFoldersLoading] = React.useState(true);
+  const [gHealth, setGHealth] = React.useState<
+    "notConfigured" | "notConnected" | "expired" | "ok" | null
+  >(null);
   const [activeFolder, setActiveFolder] = React.useState<GmailFolder | null>(null);
   const [folderMails, setFolderMails] = React.useState<MailMessage[]>([]);
   const [folderLoading, setFolderLoading] = React.useState(false);
@@ -223,6 +227,11 @@ export function MailView({
       .then((f) => active && setFolders(f))
       .catch(() => {})
       .finally(() => active && setFoldersLoading(false));
+    // Hent også forbindelses-sundhed, så en tom mappe-liste kan forklares
+    // præcist (aldrig forbundet vs. udløbet forbindelse).
+    googleHealth()
+      .then((h) => active && setGHealth(h))
+      .catch(() => active && setGHealth(null));
     return () => {
       active = false;
     };
@@ -303,6 +312,7 @@ export function MailView({
         <MailFolders
           folders={folders}
           loading={foldersLoading}
+          health={gHealth}
           activeFolderId={activeFolder?.id ?? null}
           onSelectInbox={backToInbox}
           onSelectFolder={openFolder}

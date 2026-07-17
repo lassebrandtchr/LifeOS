@@ -213,6 +213,12 @@ export async function forwardEmail(
 
 export type { GmailFolder };
 
+/** Sundhedstjek på Google-forbindelsen (til præcis fejlbesked i mail-UI'et). */
+export async function googleHealth() {
+  const { getGoogleHealth } = await import("@/features/integrations/google");
+  return getGoogleHealth();
+}
+
 /** Alle Gmail-mapper (labels) til sidebaren. */
 export async function getGmailFolders(): Promise<GmailFolder[]> {
   const a = await auth();

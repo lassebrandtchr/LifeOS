@@ -64,12 +64,15 @@ function FolderRow({
 export function MailFolders({
   folders,
   loading,
+  health,
   activeFolderId,
   onSelectInbox,
   onSelectFolder,
 }: {
   folders: GmailFolder[];
   loading: boolean;
+  /** Google-forbindelsens tilstand – til en præcis fejlbesked. */
+  health: "notConfigured" | "notConnected" | "expired" | "ok" | null;
   /** null = indbakke-visningen (Gmail + Outlook). */
   activeFolderId: string | null;
   onSelectInbox: () => void;
@@ -102,10 +105,22 @@ export function MailFolders({
           <Loader2 className="size-3.5 animate-spin" /> Henter mapper …
         </p>
       ) : folders.length === 0 ? (
-        <p className="flex items-start gap-2 px-2.5 py-3 text-xs text-muted-foreground">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          Kunne ikke hente Gmail-mapper. Tjek at Gmail er forbundet.
-        </p>
+        <div className="space-y-2 px-2.5 py-3">
+          <p className="flex items-start gap-2 text-xs text-muted-foreground">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" />
+            {health === "expired"
+              ? "Din Google-forbindelse er udløbet. Forbind igen for at hente dine mapper og mails."
+              : health === "notConnected"
+                ? "Google er ikke forbundet. Forbind for at hente dine Gmail-mapper."
+                : "Kunne ikke hente Gmail-mapper. Prøv at forbinde Google igen."}
+          </p>
+          <a
+            href="/indstillinger"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-secondary/40 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-secondary"
+          >
+            Forbind Google igen
+          </a>
+        </div>
       ) : (
         <>
           {systemFolders.length > 0 && (

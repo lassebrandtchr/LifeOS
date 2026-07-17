@@ -68,6 +68,25 @@ export async function isGoogleConnected(): Promise<boolean> {
 }
 
 /**
+ * Sundhedstjek på Google-forbindelsen. Skelner de tre tilstande, der ellers
+ * ligner hinanden i UI'et:
+ *   - notConfigured: der er slet ingen Google-nøgler i appen.
+ *   - notConnected:  Lasse har aldrig forbundet (eller er blevet ryddet).
+ *   - expired:       forbundet, MEN token'et kan ikke fornyes (typisk 7-dages-
+ *                    udløbet fra "Testing"-mode) → skal forbindes igen.
+ *   - ok:            alt virker.
+ */
+export type GoogleHealth = "notConfigured" | "notConnected" | "expired" | "ok";
+
+export async function getGoogleHealth(): Promise<GoogleHealth> {
+  if (!isGoogleConfigured()) return "notConfigured";
+  const conn = await getGoogleConnection();
+  if (!conn?.refreshToken) return "notConnected";
+  const token = await getValidAccessToken();
+  return token ? "ok" : "expired";
+}
+
+/**
  * Blev der givet Gmail-adgang, da Google blev forbundet?
  *
  * Når man forbinder Google, kan man fravælge enkelte tilladelser på
