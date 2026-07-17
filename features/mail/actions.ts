@@ -468,7 +468,7 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
   const supabase = await createClient();
   const { data } = await supabase
     .from("emails")
-    .select("id, subject, workspace, external_id, source")
+    .select("id, subject, workspace, external_id, source, snippet, from_addr, received_at")
     .eq("id", emailId)
     .maybeSingle();
   if (!data) return null;
@@ -505,7 +505,28 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
       }
     }
   } catch {
-    // tom tråd – UI viser en pæn fejl/fallback
+    // live-hentning fejlede – vi falder tilbage til det gemte uddrag nedenfor
+  }
+
+  // FALDER LIVE-HENTNINGEN UD, så mailen ALTID kan åbnes: byg én besked af det
+  // uddrag, der allerede er gemt i databasen. Uden dette viste en enkelt
+  // mislykket Gmail-forespørgsel bare "Kunne ikke hente mail-indhold", selvom
+  // Gmail er forbundet (fx et kortvarigt hik eller en enkelt besked Gmail ikke
+  // ville udlevere). Nu ser man i det mindste emne + uddrag.
+  if (base.messages.length === 0) {
+    base.messages = [
+      {
+        messageId: base.external_id,
+        from: (data.from_addr as string | null) ?? null,
+        date: (data.received_at as string | null) ?? null,
+        fromMe: false,
+        bodyHtml: null,
+        body:
+          (data.snippet as string | null) ??
+          "Kunne ikke hente hele mailen lige nu – prøv igen om lidt.",
+        attachments: [],
+      },
+    ];
   }
 
   // At åbne en mail = den er læst. Og har tråden et svar fra Lasse (også hvis
