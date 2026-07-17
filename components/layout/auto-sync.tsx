@@ -6,15 +6,15 @@ import { useRouter } from "next/navigation";
 import { syncEverythingNow } from "@/features/integrations/actions";
 import { safeGetItem, safeSetItem } from "@/lib/safe-storage";
 
-// Hver 30. minut – Lasses ønskede opdaterings-kadence.
-const INTERVAL_MS = 30 * 60 * 1000;
+// Hver 15. minut – Lasses ønskede opdaterings-kadence (hele året rundt).
+const INTERVAL_MS = 15 * 60 * 1000;
 const STORAGE_KEY = "lifeos-last-autosync";
 
 /**
  * Usynlig baggrunds-synk. Mens appen er åben i browseren, synkroniserer den
- * Gmail/Google Kalender/Outlook/Notion automatisk hvert 30. minut – uden at
+ * Gmail/Google Kalender/Outlook/Notion automatisk hvert 15. minut – uden at
  * Lasse selv skal ind under Indstillinger og trykke "Synkronisér".
- * Supplerer den eksterne GitHub Actions-cron (også hvert 30. min), som
+ * Supplerer den eksterne GitHub Actions-cron (også hvert 15. min), som
  * kører selv når appen er lukket.
  *
  * VIGTIGT: efter en gennemført synk kaldes router.refresh(), så den side

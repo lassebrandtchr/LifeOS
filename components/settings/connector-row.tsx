@@ -17,6 +17,7 @@ import {
   disconnectNotion,
   syncNotion,
   syncNotionTasks,
+  type IntegrationActionState,
 } from "@/features/integrations/actions";
 import { NotionConnectDialog } from "@/components/settings/notion-connect-dialog";
 import type {
@@ -71,23 +72,37 @@ export function ConnectorRow({
     });
   }
 
-  function onSync() {
+  // Fælles: kør en synk-action og vis ALTID feedback. try/catch er vigtigt –
+  // uden det ville en server-action, der kaster/hænger (fx langsom database
+  // eller netværk), efterlade knappen tavs ("der sker ingenting"), fordi
+  // fejlen forsvinder inde i startTransition uden en toast.
+  function runSync(
+    action: () => Promise<IntegrationActionState>,
+    okFallback: string,
+  ) {
     startTransition(async () => {
-      const res = await syncGoogleCalendar();
-      if (res?.error) toast.error(res.error, { duration: 8000 });
-      else toast.success(res?.message ?? "Google Kalender synkroniseret ✓");
+      try {
+        const res = await action();
+        if (res?.error) toast.error(res.error, { duration: 8000 });
+        else {
+          toast.success(res?.message ?? okFallback);
+          if (res?.warning) toast.warning(res.warning);
+        }
+      } catch {
+        toast.error("Kunne ikke synkronisere – tjek din forbindelse og prøv igen.");
+      }
     });
+  }
+
+  function onSync() {
+    runSync(syncGoogleCalendar, "Google Kalender synkroniseret ✓");
   }
 
   // syncGmail() har eksisteret i actions.ts (samme kode-sti som den
   // automatiske baggrunds-synk bruger), men var aldrig koblet til nogen
   // knap i UI'et – "Synkronisér" ud for Gmail var derfor slet ikke der.
   function onSyncGmail() {
-    startTransition(async () => {
-      const res = await syncGmail();
-      if (res?.error) toast.error(res.error, { duration: 8000 });
-      else toast.success(res?.message ?? "Gmail synkroniseret ✓");
-    });
+    runSync(syncGmail, "Gmail synkroniseret ✓");
   }
 
   function onDisconnectMicrosoft() {

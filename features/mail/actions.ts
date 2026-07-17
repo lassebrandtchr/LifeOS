@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/features/integrations/google";
 import { getValidMicrosoftToken } from "@/features/integrations/microsoft";
+import { getGmailSignature } from "@/lib/google/gmail";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -378,14 +379,30 @@ export async function sendEmailReply(
       const toAddr = fromHeader || (data.from_addr as string) || "";
       const subject = `Re: ${(data.subject as string) ?? ""}`;
 
+      // Hent Lasses egen Gmail-signatur og sæt den automatisk på svaret.
+      // Sendes som HTML, så signaturens formatering/links/logo bevares.
+      const signature = await getGmailSignature(token);
+      const escaped = replyText
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\n/g, "<br>");
+      const htmlBody = signature
+        ? `<div>${escaped}</div><br><br>${signature}`
+        : `<div>${escaped}</div>`;
+
+      // RFC 2822-besked med UTF-8 HTML-krop (base64-kodet, som Gmail kræver
+      // for ikke-ASCII tegn i danske signaturer).
+      const b64Body = Buffer.from(htmlBody, "utf-8").toString("base64");
       const lines = [
         `To: ${toAddr}`,
         `Subject: ${subject}`,
         ...(messageId ? [`In-Reply-To: ${messageId}`, `References: ${messageId}`] : []),
-        "Content-Type: text/plain; charset=utf-8",
         "MIME-Version: 1.0",
+        "Content-Type: text/html; charset=utf-8",
+        "Content-Transfer-Encoding: base64",
         "",
-        replyText,
+        b64Body,
       ];
       const encoded = Buffer.from(lines.join("\r\n")).toString("base64url");
 

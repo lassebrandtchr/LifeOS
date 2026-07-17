@@ -36,6 +36,39 @@ export type GmailMessage = {
   receivedISO: string | null;
 };
 
+/**
+ * Henter brugerens EGEN Gmail-signatur (HTML) fra Gmail-indstillingerne.
+ *
+ * Gmail gemmer én signatur pr. afsender-adresse (sendAs). Vi bruger
+ * standard-adressens signatur, så svar automatisk får præcis den signatur,
+ * Lasse selv har sat op i Gmail. Kræver scopet gmail.settings.basic.
+ *
+ * Returnerer null hvis der ingen signatur er, eller hvis scopet mangler
+ * (gammelt token) – så falder svaret bare tilbage til ingen signatur.
+ */
+export async function getGmailSignature(accessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API}/settings/sendAs`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const list = (data.sendAs ?? []) as {
+      isDefault?: boolean;
+      isPrimary?: boolean;
+      signature?: string;
+    }[];
+    const chosen =
+      list.find((s) => s.isDefault && s.signature) ??
+      list.find((s) => s.isPrimary && s.signature) ??
+      list.find((s) => s.signature);
+    const sig = chosen?.signature?.trim();
+    return sig ? sig : null;
+  } catch {
+    return null;
+  }
+}
+
 function header(headers: { name?: string; value?: string }[], name: string): string | null {
   const h = headers.find((x) => x.name?.toLowerCase() === name.toLowerCase());
   return h?.value ?? null;

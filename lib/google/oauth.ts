@@ -26,6 +26,11 @@ export const GOOGLE_SCOPES = [
   "email",
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/gmail.modify",
+  // Læse-adgang til Gmail-indstillinger, så vi kan hente Lasses egen
+  // signatur og sætte den på svar automatisk. Kræver at Google forbindes
+  // igen én gang (gamle tokens har ikke dette scope) – signaturen springes
+  // pænt over, indtil det sker.
+  "https://www.googleapis.com/auth/gmail.settings.basic",
 ];
 
 /** Er Google-nøglerne sat op endnu? */

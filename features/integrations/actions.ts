@@ -27,9 +27,15 @@ const NOT_READY =
 async function getAuth() {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // auth.getUser() går over netværket og havde ingen timeout – er databasen
+  // langsom (gratis-plan, netop vågnet), kunne en synk-handling hænge her
+  // uden nogensinde at svare, så knappen stod tavs. Kap kaldet, så handlingen
+  // ALTID svarer (klienten viser så en venlig fejl i stedet for ingenting).
+  const res = await Promise.race([
+    supabase.auth.getUser(),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+  ]);
+  const user = res?.data?.user;
   if (!user) return null;
   return { supabase, userId: user.id };
 }
