@@ -71,6 +71,10 @@ export type MailMessage = {
   replied: boolean;
   /** Grov kategori sat af Mail AI (fx 'kunde', 'faktura') – kan være null. */
   category: string | null;
+  /** Faktura: gemt forfaldsdato (ISO) – kun sat hvis manuelt/PDF-udtrukket. */
+  invoiceDueDate: string | null;
+  /** Faktura: har Lasse markeret den som betalt? */
+  invoicePaid: boolean;
   /** Hvilken connector den kom fra ('gmail', 'outlook', ...). */
   source: string | null;
   /** 'work' | 'private' | 'shared' (samme verdener som resten af LifeOS). */

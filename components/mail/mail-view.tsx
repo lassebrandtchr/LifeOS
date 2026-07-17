@@ -170,9 +170,12 @@ function MailSection({
 export function MailView({
   mails,
   initialOrder,
+  openMailId,
 }: {
   mails: MailMessage[];
   initialOrder: Workspace[];
+  /** Åbn denne mail automatisk ved indlæsning (fx fra faktura-påmindelsen). */
+  openMailId?: string;
 }) {
   const [order, setOrder] = React.useState<Workspace[]>(initialOrder);
   const [selected, setSelected] = React.useState<MailMessage | null>(null);
@@ -180,6 +183,13 @@ export function MailView({
     const id = setInterval(() => setOrder(getWorkspaceOrder()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  // Åbn en bestemt mail, hvis ?abn=<id> peger på en kendt mail.
+  React.useEffect(() => {
+    if (!openMailId) return;
+    const found = mails.find((m) => m.id === openMailId);
+    if (found) setSelected(found);
+  }, [openMailId, mails]);
 
   if (mails.length === 0) {
     return (

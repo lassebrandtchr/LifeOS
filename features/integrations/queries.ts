@@ -111,6 +111,9 @@ export async function getMailMessages(limit = 50): Promise<MailMessage[]> {
         // Defensiv: kolonnen 'replied' findes måske ikke endnu (migration 0017).
         replied: Boolean(r.replied),
         category: (r.category as string | null) ?? null,
+        // Defensiv: faktura-kolonnerne findes måske ikke endnu (migration 0018).
+        invoiceDueDate: (r.invoice_due_date as string | null) ?? null,
+        invoicePaid: Boolean(r.invoice_paid),
         source,
         workspace,
         receivedAt: (r.received_at as string | null) ?? null,

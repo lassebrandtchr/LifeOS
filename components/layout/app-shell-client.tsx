@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/mobile-nav";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AutoSync } from "@/components/layout/auto-sync";
 import { ReminderWatcher } from "@/components/layout/reminder-watcher";
+import { InvoiceReminder } from "@/components/layout/invoice-reminder";
 import { WorkModeRefresher } from "@/components/layout/work-mode-refresher";
 import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context";
 import type { SessionUser } from "@/lib/auth/dal";
@@ -53,6 +54,7 @@ function ShellLayout({
     <div className="flex min-h-dvh">
       <AutoSync />
       <ReminderWatcher />
+      <InvoiceReminder />
       <WorkModeRefresher />
       <AmbientBackground />
 

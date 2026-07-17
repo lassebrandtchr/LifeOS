@@ -3,7 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Reply, Send, X, Tag, Check, CornerUpLeft } from "lucide-react";
+import { Loader2, Reply, Send, X, Tag, Check, CornerUpLeft, Receipt, FileSearch } from "lucide-react";
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
@@ -17,6 +17,12 @@ import {
   setEmailCategory,
   type EmailThread,
 } from "@/features/mail/actions";
+import {
+  setInvoicePaid,
+  setInvoiceDueDate,
+  extractInvoiceDueDateFromPdf,
+} from "@/features/mail/invoice-actions";
+import { parseDanishDueDate } from "@/lib/invoice/due-date";
 import type { MailMessage } from "@/features/integrations/types";
 
 /** "Karl Hansen <k@x.dk>" → "Karl Hansen"; ellers adressen. */
@@ -271,6 +277,9 @@ export function MailReaderDrawer({
             )}
           </div>
 
+          {/* Faktura-panel – kun for mails kategoriseret som 'faktura'. */}
+          {mail.category === "faktura" && <InvoicePanel mail={mail} />}
+
           {/* Svar */}
           <div className="border-t border-border/60 px-5 py-4 sm:px-6">
             {showReply ? (
@@ -317,5 +326,108 @@ export function MailReaderDrawer({
       </motion.div>
     </AnimatePresence>,
     document.body,
+  );
+}
+
+/**
+ * InvoicePanel – faktura-styring inde i mailen: forfaldsdato (auto-udledt fra
+ * mailteksten, kan hentes fra PDF eller sættes manuelt) + "Markér som betalt".
+ * Betalte fakturaer holder op med at give påmindelser (InvoiceReminder).
+ */
+function InvoicePanel({ mail }: { mail: MailMessage }) {
+  const derived = React.useMemo(
+    () => parseDanishDueDate(`${mail.subject} ${mail.snippet}`),
+    [mail.subject, mail.snippet],
+  );
+  const [due, setDue] = React.useState<string | null>(mail.invoiceDueDate ?? derived);
+  const [dueStored, setDueStored] = React.useState<boolean>(Boolean(mail.invoiceDueDate));
+  const [paid, setPaid] = React.useState<boolean>(mail.invoicePaid);
+  const [parsing, setParsing] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+
+  async function togglePaid() {
+    const next = !paid;
+    setPaid(next);
+    setSaving(true);
+    const res = await setInvoicePaid(mail.id, next);
+    setSaving(false);
+    if (res?.error) {
+      setPaid(!next);
+      toast.error(res.error);
+    } else {
+      toast.success(next ? "Faktura markeret som betalt ✓" : "Markeret som ubetalt");
+    }
+  }
+
+  async function saveDue(value: string) {
+    const iso = value || null;
+    setDue(iso);
+    setDueStored(Boolean(iso));
+    const res = await setInvoiceDueDate(mail.id, iso);
+    if (res?.error) toast.error(res.error);
+  }
+
+  async function findInPdf() {
+    setParsing(true);
+    const res = await extractInvoiceDueDateFromPdf(mail.id);
+    setParsing(false);
+    if (res?.error) {
+      toast.error(res.error, { duration: 7000 });
+      return;
+    }
+    if (res?.dueDate) {
+      setDue(res.dueDate);
+      setDueStored(true);
+      toast.success("Forfaldsdato fundet i PDF'en ✓");
+    }
+  }
+
+  return (
+    <div className="border-t border-warning/30 bg-warning/[0.06] px-5 py-3.5 sm:px-6">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2.5">
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-warning">
+          <Receipt className="size-4" />
+          Faktura
+        </span>
+
+        <label className="inline-flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Forfald:</span>
+          <input
+            type="date"
+            value={due ?? ""}
+            onChange={(e) => saveDue(e.target.value)}
+            className="rounded-lg border border-border/60 bg-background px-2 py-1 text-sm outline-none focus:border-ring focus:ring-2 focus:ring-ring/30"
+          />
+          {due && !dueStored && (
+            <span className="text-[11px] text-muted-foreground">(udledt – tjek den gerne)</span>
+          )}
+        </label>
+
+        <button
+          type="button"
+          onClick={findInPdf}
+          disabled={parsing}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground disabled:opacity-60"
+        >
+          {parsing ? <Loader2 className="size-3.5 animate-spin" /> : <FileSearch className="size-3.5" />}
+          Find forfald i PDF
+        </button>
+
+        <button
+          type="button"
+          onClick={togglePaid}
+          disabled={saving}
+          className={cn(
+            "ml-auto inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-60",
+            paid
+              ? "border-success/40 bg-success/10 text-success"
+              : "border-border/60 hover:bg-secondary",
+          )}
+        >
+          {saving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+          {paid ? "Betalt" : "Markér som betalt"}
+        </button>
+      </div>
+    </div>
   );
 }
