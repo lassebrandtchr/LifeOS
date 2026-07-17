@@ -120,7 +120,9 @@ export async function syncGoogleCalendar(): Promise<IntegrationActionState> {
   if (!auth) return { error: NOT_READY };
 
   const { getValidAccessToken } = await import("@/features/integrations/google");
-  const { listCalendars, listEventsFromCalendar } = await import("@/lib/google/calendar");
+  const { listCalendars, listEventsFromCalendar, probeCalendarApi } = await import(
+    "@/lib/google/calendar"
+  );
   const { parseTaskInput } = await import("@/features/tasks/parse");
 
   const token = await getValidAccessToken();
@@ -134,6 +136,16 @@ export async function syncGoogleCalendar(): Promise<IntegrationActionState> {
     // Hent listen over ALLE kalendere (primær + delte som "Hanne og Lasse").
     const calendars = await listCalendars(token);
     if (calendars.length === 0) {
+      // Find ud af HVORFOR (samme mønster som Gmail): er Google Calendar API
+      // slået fra i Cloud-projektet, eller mangler der adgang?
+      const probe = await probeCalendarApi(token);
+      const reason = (probe.reason ?? "").toLowerCase();
+      if (reason.includes("disabled") || reason.includes("has not been used")) {
+        return {
+          error:
+            "Google Kalender er ikke slået til i din Google Cloud-konto. Åbn Google Cloud Console → APIs & Services → Enable APIs → søg 'Google Calendar API' → Enable. Prøv så igen om et øjeblik.",
+        };
+      }
       return {
         error:
           "Kunne ikke læse dine kalendere. Gå til Indstillinger → Google Kalender → Afbryd, og Forbind så igen for at give adgang til ALLE dine kalendere.",

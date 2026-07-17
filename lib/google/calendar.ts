@@ -63,6 +63,32 @@ function isNoiseCalendar(id: string): boolean {
   return /#(holiday|weeknum|contacts)@|group\.v\.calendar\.google\.com/.test(id);
 }
 
+/**
+ * Undersøger PRÆCIST hvorfor kalender-adgang fejler, når listen kom tom
+ * tilbage. Bruges til at give en handlingsanvisning i stedet for en generisk
+ * "kunne ikke læse kalendere" – på samme måde som GmailApiError.
+ *
+ * Returnerer `{ ok: true }` hvis kaldet lykkes, ellers status + Googles egen
+ * forklaring (fx "Google Calendar API has not been used ... or it is disabled").
+ */
+export async function probeCalendarApi(
+  accessToken: string,
+): Promise<{ ok: boolean; status?: number; reason?: string }> {
+  try {
+    const res = await fetch(`${API}/users/me/calendarList?minAccessRole=reader`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) return { ok: true };
+    const reason = await res
+      .json()
+      .then((b) => (b?.error?.message as string) ?? "")
+      .catch(() => "");
+    return { ok: false, status: res.status, reason };
+  } catch {
+    return { ok: false, reason: "netværksfejl" };
+  }
+}
+
 /** Henter alle kalendere i brugerens liste (primær + delte som "Hanne og Lasse"). */
 export async function listCalendars(accessToken: string): Promise<CalendarRef[]> {
   try {
