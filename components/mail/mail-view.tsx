@@ -207,6 +207,7 @@ export function MailView({
   const [gHealth, setGHealth] = React.useState<
     "notConfigured" | "notConnected" | "expired" | "ok" | null
   >(null);
+  const [foldersError, setFoldersError] = React.useState<string | undefined>(undefined);
   const [activeFolder, setActiveFolder] = React.useState<GmailFolder | null>(null);
   const [folderMails, setFolderMails] = React.useState<MailMessage[]>([]);
   const [folderLoading, setFolderLoading] = React.useState(false);
@@ -224,7 +225,11 @@ export function MailView({
   React.useEffect(() => {
     let active = true;
     getGmailFolders()
-      .then((f) => active && setFolders(f))
+      .then((res) => {
+        if (!active) return;
+        setFolders(res.folders);
+        setFoldersError(res.error);
+      })
       .catch(() => {})
       .finally(() => active && setFoldersLoading(false));
     // Hent også forbindelses-sundhed, så en tom mappe-liste kan forklares
@@ -313,6 +318,7 @@ export function MailView({
           folders={folders}
           loading={foldersLoading}
           health={gHealth}
+          errorReason={foldersError}
           activeFolderId={activeFolder?.id ?? null}
           onSelectInbox={backToInbox}
           onSelectFolder={openFolder}

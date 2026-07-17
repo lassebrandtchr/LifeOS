@@ -219,16 +219,28 @@ export async function googleHealth() {
   return getGoogleHealth();
 }
 
-/** Alle Gmail-mapper (labels) til sidebaren. */
-export async function getGmailFolders(): Promise<GmailFolder[]> {
+/**
+ * Alle Gmail-mapper (labels) til sidebaren + en PRÆCIS årsag hvis det fejler.
+ * reason indeholder Googles egen fejlbesked (fx "insufficient authentication
+ * scopes"), så vi kan vise hvad der REELT er galt i stedet for at gætte.
+ */
+export async function getGmailFolders(): Promise<{
+  folders: GmailFolder[];
+  error?: string;
+}> {
   const a = await auth();
-  if (!a) return [];
+  if (!a) return { folders: [], error: "ikke logget ind" };
   try {
     const token = await getValidAccessToken();
-    if (!token) return [];
-    return await listGmailFolders(token);
-  } catch {
-    return [];
+    if (!token) return { folders: [], error: "forbindelse udløbet" };
+    const folders = await listGmailFolders(token);
+    return { folders };
+  } catch (e) {
+    const { GmailApiError } = await import("@/lib/google/gmail");
+    if (e instanceof GmailApiError) {
+      return { folders: [], error: `${e.status}: ${e.reason || "ukendt Gmail-fejl"}` };
+    }
+    return { folders: [], error: "netværksfejl" };
   }
 }
 

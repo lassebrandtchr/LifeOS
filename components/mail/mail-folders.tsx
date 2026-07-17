@@ -65,6 +65,7 @@ export function MailFolders({
   folders,
   loading,
   health,
+  errorReason,
   activeFolderId,
   onSelectInbox,
   onSelectFolder,
@@ -73,6 +74,8 @@ export function MailFolders({
   loading: boolean;
   /** Google-forbindelsens tilstand – til en præcis fejlbesked. */
   health: "notConfigured" | "notConnected" | "expired" | "ok" | null;
+  /** Googles egen fejlbesked, hvis mappe-hentningen fejlede. */
+  errorReason?: string;
   /** null = indbakke-visningen (Gmail + Outlook). */
   activeFolderId: string | null;
   onSelectInbox: () => void;
@@ -112,8 +115,13 @@ export function MailFolders({
               ? "Din Google-forbindelse er udløbet. Forbind igen for at hente dine mapper og mails."
               : health === "notConnected"
                 ? "Google er ikke forbundet. Forbind for at hente dine Gmail-mapper."
-                : "Kunne ikke hente Gmail-mapper. Prøv at forbinde Google igen."}
+                : /scope|insufficient|permission/i.test(errorReason ?? "")
+                  ? "LifeOS fik ikke adgang til Gmail (kun kalender blev givet). Forbind igen, og sæt flueben ved Gmail."
+                  : "Kunne ikke hente Gmail-mapper. Prøv at forbinde Google igen."}
           </p>
+          {errorReason && (
+            <p className="text-[10px] text-muted-foreground/70">Gmail: {errorReason}</p>
+          )}
           <a
             href="/indstillinger"
             className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-secondary/40 px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-secondary"

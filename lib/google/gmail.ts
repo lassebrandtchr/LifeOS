@@ -72,7 +72,15 @@ export async function listGmailFolders(accessToken: string): Promise<GmailFolder
   const listRes = await fetch(`${API}/labels`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!listRes.ok) throw new GmailApiError(listRes.status, "");
+  if (!listRes.ok) {
+    // Tag Googles egen forklaring med (fx "insufficient authentication
+    // scopes"), så kalderen kan vise den PRÆCISE årsag.
+    const reason = await listRes
+      .json()
+      .then((b) => (b?.error?.message as string) ?? "")
+      .catch(() => "");
+    throw new GmailApiError(listRes.status, reason);
+  }
   const labels = ((await listRes.json()).labels ?? []) as {
     id: string;
     name: string;
