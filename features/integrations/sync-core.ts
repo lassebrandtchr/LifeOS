@@ -147,8 +147,13 @@ export async function syncGmailCore(
       received_at: m.receivedISO,
       // Gmail = privat verden (Storgaard-mail kommer via Outlook).
       workspace: "private",
-      // Meningsfuld kategori ud fra afsender/emne/uddrag (regelbaseret).
-      category: categorizeEmail({ from: m.from ?? "", subject: m.subject, snippet: m.snippet }),
+      // Kategori: Gmail-labels først (grundsandhed), ellers regler på indhold.
+      category: categorizeEmail({
+        from: m.from ?? "",
+        subject: m.subject,
+        snippet: m.snippet,
+        labelIds: m.labelIds,
+      }),
     }));
 
     await supabase.from("emails").delete().eq("user_id", userId).eq("source", "gmail");

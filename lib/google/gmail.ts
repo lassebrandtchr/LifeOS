@@ -34,6 +34,8 @@ export type GmailMessage = {
   from: string | null;
   isRead: boolean;
   receivedISO: string | null;
+  /** Gmail-labels på beskeden – bruges til præcis kategorisering. */
+  labelIds: string[];
 };
 
 /**
@@ -132,6 +134,7 @@ export async function listGmailMessages(
             : dateStr
               ? new Date(dateStr).toISOString()
               : null,
+          labelIds,
         } as GmailMessage;
       } catch {
         // Kun ÉN besked kunne ikke hentes – ikke en grund til at fejle hele synkroniseringen.

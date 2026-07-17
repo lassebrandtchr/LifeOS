@@ -57,16 +57,55 @@ export const categoryById = (id: string | null): MailCategory | undefined =>
 /** Afsender-domæner der altid regnes som kunder (Storgaard-relaterede samarbejder). */
 const CLIENT_DOMAINS = ["emcare.dk"];
 
+// ─────────────── Gmail-labels → LifeOS-kategori (STÆRKESTE signal) ──────────
+// Lasses EGNE Gmail-labels (og Gmails egne kategorier) er "grundsandheden":
+// har Gmail allerede sat en label, vi kender, så bruger vi DEN i stedet for at
+// gætte ud fra teksten. Det er dét, der giver høj træfsikkerhed.
+
+/** Gmails indbyggede kategori-labels → vores kategori. */
+const GMAIL_SYSTEM_LABELS: Record<string, MailCategoryId> = {
+  CATEGORY_PROMOTIONS: "reklame",
+  CATEGORY_FORUMS: "nyhedsbrev",
+};
+
+/** Reverse-map: Lasses egne label-ID'er (fra MAIL_CATEGORIES) → kategori. */
+const OWN_LABEL_TO_CATEGORY: Record<string, MailCategoryId> = Object.fromEntries(
+  MAIL_CATEGORIES.filter((c) => c.gmailLabelId).map((c) => [c.gmailLabelId, c.id]),
+);
+
 /**
- * Kategoriserer en mail. Rækkefølgen er bevidst: kunde → faktura → levering →
- * kvittering → nyhedsbrev. (Fx "din ordre er leveret" = levering, ikke kvittering.)
+ * Kategori ud fra beskedens Gmail-labels. Lasses egne labels vinder over Gmails
+ * systemkategorier. Returnerer null, hvis ingen kendt label er sat.
+ */
+export function categoryFromGmailLabels(labelIds: string[] | undefined): MailCategoryId | null {
+  if (!labelIds || labelIds.length === 0) return null;
+  for (const id of labelIds) {
+    if (OWN_LABEL_TO_CATEGORY[id]) return OWN_LABEL_TO_CATEGORY[id];
+  }
+  for (const id of labelIds) {
+    if (GMAIL_SYSTEM_LABELS[id]) return GMAIL_SYSTEM_LABELS[id];
+  }
+  return null;
+}
+
+/**
+ * Kategoriserer en mail. Prioritet:
+ *   1) Gmail-labels (Lasses egne + Gmails systemkategorier) – grundsandhed.
+ *   2) Regler på afsender/emne/uddrag (kunde → faktura → levering →
+ *      kvittering → nyhedsbrev …). Fx "din ordre er leveret" = levering.
  * Returnerer null hvis intet matcher (så får mailen ingen kategori).
  */
 export function categorizeEmail(input: {
   from: string;
   subject?: string | null;
   snippet?: string | null;
+  labelIds?: string[];
 }): MailCategoryId | null {
+  // 1) Labels først – de er sat af Gmail/Lasse selv og er derfor mest præcise.
+  const byLabel = categoryFromGmailLabels(input.labelIds);
+  if (byLabel) return byLabel;
+
+  // 2) Regelbaseret fallback på indholdet.
   const from = (input.from ?? "").toLowerCase();
   const domain = from.split("@")[1] ?? "";
   const text = `${input.subject ?? ""} ${input.snippet ?? ""}`.toLowerCase();
