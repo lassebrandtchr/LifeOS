@@ -42,27 +42,40 @@ export async function updateSession(request: NextRequest) {
     return supabaseResponse;
   }
 
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
+  // KRITISK: alt Supabase-arbejde er pakket i try/catch. Middlewaren kører på
+  // HVER request, så et kast her (fx forkert/roteret nøgle, Supabase nede,
+  // netværksfejl) ville give Vercel-fejlen MIDDLEWARE_INVOCATION_FAILED og
+  // tage HELE appen ned – ikke bare login. Fejler tjekket, lader vi requesten
+  // passere (appen loader; siderne håndterer selv login), i stedet for at
+  // vælte alt.
+  let user: { id: string } | null = null;
+  try {
+    const supabase = createServerClient(url, anonKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({ request });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
+        },
       },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) =>
-          request.cookies.set(name, value),
-        );
-        supabaseResponse = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options),
-        );
-      },
-    },
-  });
+    });
 
-  // Forfrisker sessionen og henter brugeren (vigtigt for Server Components).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // Forfrisker sessionen og henter brugeren (vigtigt for Server Components).
+    const {
+      data: { user: fetchedUser },
+    } = await supabase.auth.getUser();
+    user = fetchedUser;
+  } catch (e) {
+    console.error("[middleware] Supabase-auth fejlede – lader requesten passere:", e);
+    return supabaseResponse;
+  }
 
   const pathname = request.nextUrl.pathname;
 
