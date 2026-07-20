@@ -108,7 +108,10 @@ export function PageQuickActions({
         }
         // Åbn editoren FØR refresh, så den vises med det samme (router.refresh
         // kører i en transition og må ikke udskyde/sluge åbningen).
-        open({ type: "task", task: res.task });
+        // autoClassify: opgaven er nyoprettet med en foreløbig titel – lad
+        // editoren udlede prioritet + kategori automatisk af Emne-teksten
+        // (samme motor som Opgaver-siden), efterhånden som Lasse skriver.
+        open({ type: "task", task: res.task, autoClassify: true });
         router.refresh();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Kunne ikke oprette opgaven.");

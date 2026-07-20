@@ -20,6 +20,7 @@ import {
 } from "@/features/tasks/constants";
 import { updateTask, updateProjectNotes } from "@/features/tasks/actions";
 import { deriveBucketFromDeadline } from "@/features/tasks/bucket";
+import { parseTaskInput } from "@/features/tasks/parse";
 import { TaskAttachments } from "@/components/tasks/task-attachments";
 import { DeadlinePicker } from "@/components/tasks/deadline-picker";
 import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
@@ -30,7 +31,10 @@ import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Task, Project, Customer } from "@/features/tasks/types";
 
 export type DetailItem =
-  | { type: "task"; task: Task }
+  // autoClassify: sæt sand når editoren åbnes for en NYOPRETTET opgave (fx fra
+  // en "Hurtig handling"). Så udleder editoren prioritet + kategori automatisk
+  // af Emne-teksten – præcis som når man skriver en opgave på Opgaver-siden.
+  | { type: "task"; task: Task; autoClassify?: boolean }
   | { type: "project"; project: Project };
 
 type Ctx = { open: (item: DetailItem) => void };
@@ -197,6 +201,7 @@ export function DetailProvider({ children }: { children: React.ReactNode }) {
                 <TaskEditor
                   key={item.task.id}
                   task={item.task}
+                  autoClassify={item.autoClassify}
                   pending={pending}
                   closing={closing}
                   onClose={() => void requestClose()}
@@ -295,6 +300,7 @@ type TaskFields = {
 
 function TaskEditor({
   task,
+  autoClassify,
   pending,
   closing,
   onClose,
@@ -303,6 +309,8 @@ function TaskEditor({
   onRestored,
 }: {
   task: Task;
+  /** Nyoprettet opgave → udled prioritet + kategori automatisk af Emne-teksten. */
+  autoClassify?: boolean;
   pending: boolean;
   /** Sand mens en sidste gemning kører ved lukning (knapper deaktiveres). */
   closing: boolean;
@@ -401,6 +409,35 @@ function TaskEditor({
     setWorkspace(ws);
     if (category && !categories.some((c) => c.id === category && c.workspace === ws)) {
       setCategory("");
+    }
+  }
+
+  // ─── Auto-klassificering (kun nyoprettede opgaver) ───────────────────────
+  // Når editoren åbnes for en frisk opgave (fx via "Hurtig handling"), udleder
+  // vi prioritet + kategori af Emne-teksten med SAMME motor som Opgaver-sidens
+  // hurtig-tilføj (parseTaskInput). Fx bliver "Lav tilbud …" → Haster og en
+  // salgs-/kundekategori, uden at man selv skal vælge. Så snart brugeren selv
+  // rører prioritet eller kategori, holder vi op med at overstyre netop det
+  // felt. Redigering af EKSISTERENDE opgaver berøres aldrig (autoClassify=false).
+  const priorityTouched = React.useRef(false);
+  const categoryTouched = React.useRef(false);
+
+  // Emne-ændring: opdatér titlen, og (for nye opgaver) genudled prioritet +
+  // kategori af teksten. Kører i selve tastetryks-handleren – ikke i en effekt.
+  function handleTitleChange(value: string) {
+    setTitle(value);
+    if (!autoClassify) return;
+    const text = value.trim();
+    if (text.length < 2) return;
+    const parsed = parseTaskInput(text);
+    if (!priorityTouched.current && parsed.priority) {
+      setPriority(parsed.priority);
+    }
+    if (!categoryTouched.current && parsed.categoryId) {
+      const cat = categories.find((x) => x.id === parsed.categoryId);
+      // Sæt kun en kategori, der passer til den valgte verden – ellers ville
+      // dropdown'en (som kun viser verdens egne kategorier) stå tom.
+      if (cat && cat.workspace === workspace) setCategory(parsed.categoryId);
     }
   }
 
@@ -587,7 +624,7 @@ function TaskEditor({
         <Field label="Emne" icon={Type}>
           <AutoGrowTextarea
             value={title}
-            onChange={setTitle}
+            onChange={handleTitleChange}
             placeholder="Hvad skal der ske?"
             className="font-medium"
           />
@@ -603,14 +640,28 @@ function TaskEditor({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Prioritet">
-            <select className={selectClass} value={priority} onChange={(e) => setPriority(e.target.value as Priority)}>
+            <select
+              className={selectClass}
+              value={priority}
+              onChange={(e) => {
+                priorityTouched.current = true;
+                setPriority(e.target.value as Priority);
+              }}
+            >
               {priorityOrder.map((p) => (
                 <option key={p} value={p}>{priorities[p].emoji} {priorities[p].label}</option>
               ))}
             </select>
           </Field>
           <Field label="Kategori">
-            <select className={selectClass} value={category} onChange={(e) => setCategory(e.target.value)}>
+            <select
+              className={selectClass}
+              value={category}
+              onChange={(e) => {
+                categoryTouched.current = true;
+                setCategory(e.target.value);
+              }}
+            >
               <option value="">Ingen</option>
               {catOptions.map((c) => (
                 <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>

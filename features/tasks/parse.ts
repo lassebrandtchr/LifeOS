@@ -43,7 +43,7 @@ const CATEGORY_KEYWORDS: { id: string; words: string[] }[] = [
   { id: "markedsfoering", words: ["markedsf", "kampagne", "reklame", "prisskilt", "skilt", "design", "flyer", "banner", "brochure", "annonce", "video", "foto", "billeder", "redigér", "rediger"] },
   { id: "kundeopfoelgning", words: ["følg op", "opfølg", "kunde", "lead", "ring til", "ringe", "kontakt", "tilbagemelding", "henvendelse", "fremvisning"] },
   { id: "finansiering", words: ["finansier", "lån", "leasing", "lease", "kredit", "afbetaling", "santander"] },
-  { id: "salg", words: ["salg", "sælg", "tilbud", "prøvekørsel", "byttebil", "slutseddel", "handel", "købsaftale", "indregistrer", "indregistrering", "bud på bil", "giv bud", "byd på", "importbil", "import af bil", "bilhandel"] },
+  { id: "salg", words: ["salg", "sælg", "tilbud", "prøvekørsel", "byttebil", "slutseddel", "handel", "købsaftale", "indregistrer", "indregistrering", "bud på bil", "giv bud", "byd på", "import bil", "importbil", "import af bil", "bilhandel"] },
   { id: "mail", words: ["mail", "e-mail", "email", "besvar", "svar på", "skriv til", "send til"] },
   { id: "administration", words: ["faktura", "regnskab", "moms", "bogfør", "administration", "papirarbejde", "bestil", "registrer", "synshal", "syn", "nummerplade", "forsikring", "dmr", "motorregister"] },
   { id: "tangevej_94", words: ["tangevej", "garage", "have", "renover", "maler", "vvs", "håndværker", "carport", "terrasse", "indkørsel", "hæk"] },
@@ -223,6 +223,9 @@ export function parseTaskInput(input: string, now: Date = new Date()): ParsedTas
 
   // ──────────────────────────────── Prioritet ───────────────────────────
   // 1) Tydelige nøgleord vinder altid.
+  //    Lasses egne forretningsregler for Storgaard Biler:
+  //      "tilbud"/"slutseddel" → haster, "bud på bil" → vigtigt,
+  //      "import bil" → kan vente. Alt andet udledes automatisk nedenfor.
   let priority: Priority | null = null;
   // Haster: tidskritiske handlinger (aflevering, slutseddel, tilbud) + klassikere.
   if (
@@ -232,15 +235,17 @@ export function parseTaskInput(input: string, now: Date = new Date()): ParsedTas
   ) {
     priority = "urgent";
   }
-  // Vigtigt: bilhandel/import (giv bud, find importbil o.l.) + klassikere.
+  // Vigtigt: bilhandel med bud (bud på bil, giv bud) + klassikere.
   else if (
-    /\b(bud på bil|giv bud|byd på|bud på|importbil|find import|import af bil|bilhandel|vigtigt|vigtig|husk|skal|vær obs|deadline|frist|inden)\b/.test(
+    /\b(bud på bil|giv bud|byd på|bud på|bilhandel|vigtigt|vigtig|husk|skal|vær obs|deadline|frist|inden)\b/.test(
       lower,
     )
   ) {
     priority = "important";
-  } else if (
-    /\b(kan vente|når der er tid|naar der er tid|lav prioritet|ingen hast|en gang)\b/.test(
+  }
+  // Kan vente: bil-import (import bil, importbil, import af bil) + klassikere.
+  else if (
+    /\b(import bil|importbil|import af bil|find import|kan vente|når der er tid|naar der er tid|lav prioritet|ingen hast|en gang)\b/.test(
       lower,
     )
   ) {
