@@ -481,11 +481,12 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
     messages: [],
     repliedByUser: false,
   };
-  if (!base.external_id) return base;
-
+  // Har mailen intet udbyder-id, springer vi live-hentningen over og lander på
+  // uddrags-fallback'en nedenfor – i stedet for at returnere en TOM tråd (som
+  // fik læseren til at vise den hårde "Kunne ikke hente mail-indhold"-fejl).
   const source = (data.source as string | null) ?? (base.workspace === "work" ? "outlook" : "gmail");
   try {
-    if (source === "gmail") {
+    if (base.external_id && source === "gmail") {
       const token = await getValidAccessToken();
       const { getGoogleConnection } = await import("@/features/integrations/google");
       const conn = await getGoogleConnection();
@@ -494,7 +495,7 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
         base.messages = t.messages;
         base.repliedByUser = t.repliedByUser;
       }
-    } else if (source === "outlook") {
+    } else if (base.external_id && source === "outlook") {
       const token = await getValidMicrosoftToken();
       const { getMicrosoftConnection } = await import("@/features/integrations/microsoft");
       const conn = await getMicrosoftConnection().catch(() => null);
@@ -516,7 +517,7 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
   if (base.messages.length === 0) {
     base.messages = [
       {
-        messageId: base.external_id,
+        messageId: base.external_id ?? base.id,
         from: (data.from_addr as string | null) ?? null,
         date: (data.received_at as string | null) ?? null,
         fromMe: false,

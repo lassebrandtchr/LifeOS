@@ -169,14 +169,35 @@ export async function getValidAccessTokenFor(
       .eq("user_id", userId);
     return refreshed.accessToken;
   } catch (e) {
-    // Google siger selv, at refresh_token'et er dødt (udløbet/tilbagekaldt) –
-    // typisk fordi OAuth-appen står i Google Cloud Console som "Testing"
-    // (der udløber Google refresh_tokens automatisk efter 7 dage). Rydder
-    // tokens, så "Forbundet"-badgen ikke lyver, og Lasse ser "Forbind"-
-    // knappen igen i stedet for en forvirrende "allerede forbundet, men
-    // synk fejler"-tilstand. En forbigående netværks-/serverfejl (alt
-    // andet) rører IKKE forbindelsen – den prøver bare igen ved næste synk.
     if (e instanceof GoogleInvalidGrantError) {
+      // KAPLØB: /mail henter mapper (getGmailFolders) OG forbindelses-sundhed
+      // (googleHealth) SAMTIDIG ved sideindlæsning. Er access_token'et udløbet,
+      // forsøger begge at forny med SAMME refresh_token på én gang. Google
+      // roterer nogle gange refresh_token og ugyldiggør det gamle straks – så
+      // vinder det ene kald, mens det andet får "invalid_grant" for et token,
+      // der lige er blevet erstattet. Hvis vi bare ryddede forbindelsen her,
+      // væltede vi mapper + enkelt-mail (mens mail-listen fra databasen så OK
+      // ud) – præcis det observerede symptom. Læs derfor rækken igen: har en
+      // anden samtidig forespørgsel allerede lagt et FRISK token ind, så BRUG
+      // det i stedet for at kalde forbindelsen død.
+      const { data: fresh } = await supabase
+        .from("google_connections")
+        .select("access_token, refresh_token, expiry")
+        .eq("user_id", userId)
+        .maybeSingle();
+      const freshExpiry = fresh?.expiry ? new Date(fresh.expiry).getTime() : 0;
+      if (
+        fresh?.access_token &&
+        fresh.refresh_token !== data.refresh_token &&
+        freshExpiry > Date.now() + 60_000
+      ) {
+        return fresh.access_token as string;
+      }
+      // Ingen frisk erstatning → forbindelsen er reelt død (typisk fordi
+      // OAuth-appen står som "Testing" i Google Cloud, hvor refresh_tokens
+      // udløber efter 7 dage). Ryd tokens, så "Forbundet"-badgen ikke lyver og
+      // Lasse ser "Forbind"-knappen igen. En forbigående netværks-/serverfejl
+      // (alt andet end invalid_grant) rører ALDRIG forbindelsen.
       await supabase
         .from("google_connections")
         .update({ access_token: null, refresh_token: null })
