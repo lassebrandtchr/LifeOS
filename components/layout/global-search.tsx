@@ -203,7 +203,7 @@ export function GlobalSearch() {
                             closed && "text-muted-foreground line-through",
                           )}
                         >
-                          {t.title}
+                          {stripHtmlInline(t.title)}
                         </span>
                         {closed && (
                           <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">

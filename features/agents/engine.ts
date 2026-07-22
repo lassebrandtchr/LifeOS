@@ -2,6 +2,7 @@ import { agents, type Domain } from "@/features/agents/registry";
 import { categoryById } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
 import type { AssistantContext, AgentInsight } from "@/features/agents/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 
 /**
  * Ræsonneringsmotoren bag LifeOS' agenter.
@@ -59,7 +60,7 @@ function bullet(tasks: Task[], max = 5): string {
     .map((t) => {
       const cat = categoryById(t.category);
       const tag = cat ? ` (${cat.label})` : "";
-      return `• ${t.title}${tag}`;
+      return `• ${stripHtmlInline(t.title)}${tag}`;
     })
     .join("\n");
 }

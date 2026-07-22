@@ -11,6 +11,7 @@ import { deriveBucketFromDeadline as deriveBucket } from "@/features/tasks/bucke
 import type { Bucket, Priority, Status, Workspace } from "@/features/tasks/constants";
 import type { Task, Customer } from "@/features/tasks/types";
 import { normalizeCustomer } from "@/features/tasks/customer";
+import { isHtmlEmpty } from "@/lib/text/strip-html";
 
 /** Global søgning (kaldes fra topbarens søgefelt). */
 export async function searchAction(query: string, taskStatus: TaskSearchStatus = "active") {
@@ -423,8 +424,10 @@ export async function updateTask(
 
   const update: Record<string, unknown> = {};
   if (fields.title !== undefined) {
+    // Emnet er rig tekst (HTML) fra editoren. En tom editor sender "<p></p>",
+    // som .trim() ville regne for udfyldt – derfor tjekkes den RENE tekst.
     const t = fields.title.trim();
-    if (!t) return { error: "Opgaven skal have et emne." };
+    if (isHtmlEmpty(t)) return { error: "Opgaven skal have et emne." };
     update.title = t;
   }
   if (fields.description !== undefined)

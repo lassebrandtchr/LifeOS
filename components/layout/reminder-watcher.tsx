@@ -7,6 +7,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getDueReminders, updateTask } from "@/features/tasks/actions";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import type { Task } from "@/features/tasks/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 
 const POLL_MS = 30_000;
 
@@ -119,7 +120,7 @@ export function ReminderWatcher() {
                   Påmindelse
                 </p>
                 <p className="mt-0.5 text-sm font-semibold leading-snug text-foreground">
-                  {task.title}
+                  {stripHtmlInline(task.title)}
                 </p>
                 <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                   <Clock className="size-3" />

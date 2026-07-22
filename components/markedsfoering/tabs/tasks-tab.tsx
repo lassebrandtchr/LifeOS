@@ -16,6 +16,7 @@ import { priorities, priorityOrder, statuses, categoryById, type Priority } from
 import { quickCreateTask } from "@/features/tasks/actions";
 import { parseTaskInput } from "@/features/tasks/parse";
 import type { Task } from "@/features/tasks/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 
 export function TasksTab({ tasks, autoCreate = false }: { tasks: Task[]; autoCreate?: boolean }) {
   return <TasksInner tasks={tasks} autoCreate={autoCreate} />;
@@ -104,7 +105,7 @@ function TaskRow({ task }: { task: Task }) {
       className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-secondary/30"
     >
       <span className={cn("size-2.5 shrink-0 rounded-full", prio.dot)} aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{task.title}</span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{stripHtmlInline(task.title)}</span>
       {cat && <Badge variant="secondary" className="shrink-0">{cat.emoji} {cat.label}</Badge>}
       {task.status !== "not_started" && <Badge variant="outline" className="shrink-0">{statuses[task.status]?.label}</Badge>}
       {deadline && <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground"><Calendar className="size-3" /> {deadline}</span>}

@@ -8,7 +8,6 @@ import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { AutoGrowTextarea } from "@/components/ui/autogrow-textarea";
 import {
   categories,
   priorities,
@@ -27,7 +26,7 @@ import { RichTextEditor } from "@/components/ui/rich-text-editor/lazy";
 import { normalizeCustomer } from "@/features/tasks/customer";
 import { getTaskVersions, restoreTaskVersion } from "@/features/tasks/history-actions";
 import { VersionHistory, type VersionEntry } from "@/components/ui/version-history";
-import { stripHtmlInline } from "@/lib/text/strip-html";
+import { stripHtmlInline, isHtmlEmpty } from "@/lib/text/strip-html";
 import type { Task, Project, Customer } from "@/features/tasks/types";
 
 export type DetailItem =
@@ -362,7 +361,7 @@ function TaskEditor({
           id: v.id,
           created_at: v.created_at,
           // Vis emne + starten af noten, så udgaverne er til at kende fra hinanden.
-          preview: [v.title, stripHtmlInline(v.notes)].filter(Boolean).join(" — "),
+          preview: [stripHtmlInline(v.title), stripHtmlInline(v.notes)].filter(Boolean).join(" — "),
         })),
       );
     } catch {
@@ -427,7 +426,9 @@ function TaskEditor({
   function handleTitleChange(value: string) {
     setTitle(value);
     if (!autoClassify) return;
-    const text = value.trim();
+    // Emnet er nu rig tekst (HTML) – parseren skal have REN tekst, ellers
+    // ville tags som <strong> forstyrre nøgleord-genkendelsen.
+    const text = stripHtmlInline(value);
     if (text.length < 2) return;
     const parsed = parseTaskInput(text);
     if (!priorityTouched.current && parsed.priority) {
@@ -486,7 +487,7 @@ function TaskEditor({
     const fields = fieldsRef.current;
     // Tom titel gemmes aldrig (ugyldig) – tillad luk; den ugyldige ændring
     // kasseres bare, ligesom auto-gem heller aldrig gemte den.
-    if (!fields.title.trim()) return true;
+    if (isHtmlEmpty(fields.title)) return true;
     if (JSON.stringify(fields) === lastSavedJson.current) return true; // intet nyt
     setAutoSaveState("saving");
     // Try/catch: et afbrudt netværkskald må ALDRIG kaste videre herfra –
@@ -516,7 +517,7 @@ function TaskEditor({
   }, [registerFlush, flush]);
 
   function handleMarkDone() {
-    if (!title.trim()) {
+    if (isHtmlEmpty(title)) {
       toast.error("Opgaven skal have et emne.");
       return;
     }
@@ -529,7 +530,7 @@ function TaskEditor({
 
   React.useEffect(() => {
     if (restoredRef.current) return; // gendannet → gem aldrig de gamle felter
-    if (!title.trim()) return; // vent til opgaven har et emne
+    if (isHtmlEmpty(title)) return; // vent til opgaven har et emne
     const json = JSON.stringify(fieldsRef.current);
     if (json === lastSavedJson.current) return; // ingen reelle ændringer
 
@@ -563,7 +564,7 @@ function TaskEditor({
     return () => {
       if (restoredRef.current) return; // gendannet → gem aldrig de gamle felter
       const fields = fieldsRef.current;
-      if (fields.title.trim() && JSON.stringify(fields) !== lastSavedJson.current) {
+      if (!isHtmlEmpty(fields.title) && JSON.stringify(fields) !== lastSavedJson.current) {
         // .catch(): komponenten er ved at forsvinde – en fejl her kan ikke
         // vises nogen steder, men må heller ikke blive en ubehandlet fejl.
         void updateTask(task.id, fields).catch(() => {});
@@ -620,13 +621,16 @@ function TaskEditor({
           />
         ) : (
           <>
-        {/* Emne – vokser nedad ligesom Note, i stedet for at klippe lange titler af. */}
+        {/* Emne – samme rig-tekst-editor som Note (skriftstørrelse, fed, kursiv,
+            lister, farver), så lange emner kan formateres. Gemmes som HTML;
+            alle lister/søgning/AI viser ren tekst via stripHtml, så man aldrig
+            ser rå tags. Gamle emner er ren tekst og virker uændret. */}
         <Field label="Emne" icon={Type}>
-          <AutoGrowTextarea
+          <RichTextEditor
             value={title}
             onChange={handleTitleChange}
+            minHeightClassName="min-h-16"
             placeholder="Hvad skal der ske?"
-            className="font-medium"
           />
         </Field>
 

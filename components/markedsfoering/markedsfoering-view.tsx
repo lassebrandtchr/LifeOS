@@ -12,6 +12,7 @@ import {
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { priorities, categoryById, statuses } from "@/features/tasks/constants";
 import type { Task } from "@/features/tasks/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 
 const ACCENT = "var(--brand)";
 
@@ -44,7 +45,7 @@ function TaskRow({ task }: { task: Task }) {
     >
       <span className={cn("size-2.5 shrink-0 rounded-full", prio.dot)} aria-hidden />
       <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", done && "text-muted-foreground line-through")}>
-        {task.title}
+        {stripHtmlInline(task.title)}
       </span>
       {cat && <Badge variant="secondary" className="shrink-0">{cat.emoji} {cat.label}</Badge>}
       {task.status !== "not_started" && (

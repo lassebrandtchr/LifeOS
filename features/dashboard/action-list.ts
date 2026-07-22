@@ -128,7 +128,7 @@ function extractSignals(text: string, fromAddr?: string): Signals {
 
 function taskSignals(task: Task): Signals {
   return extractSignals(
-    [task.title, task.description ?? "", stripHtmlInline(task.notes)].join(" "),
+    [stripHtmlInline(task.title), task.description ?? "", stripHtmlInline(task.notes)].join(" "),
   );
 }
 
@@ -225,7 +225,7 @@ export function buildActionList(
     if (match) claimedThreadIds.add(match.id);
 
     const rule = match ? findFiringRule(match, workspace) : null;
-    const title = rule && rule.title ? rule.title : task.title;
+    const title = rule && rule.title ? rule.title : stripHtmlInline(task.title);
     const contact = match ? extractContact(threadSignals(match)) : extractContact(taskSignals(task));
 
     items.push({

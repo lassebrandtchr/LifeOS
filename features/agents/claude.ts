@@ -3,6 +3,7 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 
 import type { AssistantContext } from "@/features/agents/types";
+import { stripHtmlInline } from "@/lib/text/strip-html";
 import type { Domain } from "@/features/agents/registry";
 
 /**
@@ -38,7 +39,7 @@ function renderContext(ctx: AssistantContext): string {
       const parts = [
         t.workspace === "work" ? "[Storgaard]" : "[Privat]",
         t.priority === "urgent" ? "HASTER" : t.priority === "important" ? "Vigtigt" : "Kan vente",
-        t.title,
+        stripHtmlInline(t.title),
         t.deadline ? `(deadline ${t.deadline.slice(0, 16).replace("T", " ")})` : "",
       ];
       lines.push("- " + parts.filter(Boolean).join(" "));

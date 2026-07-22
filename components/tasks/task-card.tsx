@@ -73,7 +73,7 @@ export function TaskCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium leading-snug">{task.title}</p>
+        <p className="text-sm font-medium leading-snug">{stripHtmlInline(task.title)}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           {cat && (
             <span className="inline-flex items-center gap-1">
