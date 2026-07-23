@@ -91,9 +91,14 @@ function htmlToText(html: string): string {
     .trim();
 }
 
-// Inline-billeder indlejres som data-URI'er. Loft, så en mail med kæmpe
-// billeder ikke giver et gigantisk svar til klienten.
-const MAX_INLINE_BYTES = 6 * 1024 * 1024;
+// Inline-billeder indlejres som base64 data-URI'er DIREKTE i svaret. KRITISK i
+// produktion: Vercels serverless-funktioner afviser svar over ~4,5 MB med en
+// hård fejl (FUNCTION_PAYLOAD_TOO_LARGE) – så en billedtung mail (eller en tråd
+// med flere beskeder) fik HELE hentningen til at fejle, og indholdet kunne ikke
+// vises (mens listen fra databasen stadig så OK ud). Loftet her er derfor et
+// DELT budget målt på base64-længden (det der reelt fylder i svaret), holdt
+// godt under 4,5 MB så der er plads til HTML-brødteksten oveni.
+const MAX_INLINE_BYTES = 2_000_000; // ~2 MB base64 pr. hentning/tråd (rigelig margin under 4,5 MB)
 
 // ─── Gmail helpers ────────────────────────────────────────────────────────────
 
@@ -130,6 +135,35 @@ async function fetchGmailAttachment(
   if (!res.ok) return null;
   const json = await res.json();
   return json.data ? Buffer.from(json.data as string, "base64url") : null;
+}
+
+/**
+ * Indlejrer inline-billeder (cid:…) som base64 data-URI'er i HTML'en – men KUN
+ * inden for et DELT byte-budget (se MAX_INLINE_BYTES). `budget.left` deles på
+ * tværs af alle beskeder i en tråd, så det samlede svar aldrig sprænger Vercels
+ * 4,5 MB-grænse. Vi måler på selve data-URI'ens længde (base64) og springer et
+ * billede over, hvis det ikke kan være inden for budgettet – så resten af mailen
+ * (tekst + de billeder der er plads til) altid vises, i stedet for at HELE
+ * hentningen fejler.
+ */
+async function embedInlineImages(
+  token: string,
+  messageId: string,
+  html: string,
+  inline: { contentId: string; attachmentId: string; mime: string }[],
+  budget: { left: number },
+): Promise<string> {
+  let out = html;
+  for (const img of inline) {
+    if (budget.left <= 0) break;
+    const buf = await fetchGmailAttachment(token, messageId, img.attachmentId);
+    if (!buf) continue;
+    const dataUri = `data:${img.mime};base64,${buf.toString("base64")}`;
+    if (dataUri.length > budget.left) continue; // ville sprænge budgettet – spring over
+    budget.left -= dataUri.length;
+    out = out.split(`cid:${img.contentId}`).join(dataUri);
+  }
+  return out;
 }
 
 async function loadGmailDetail(
@@ -176,17 +210,10 @@ async function loadGmailDetail(
     }
   });
 
-  // Indlejr inline-billeder (cid:) som data-URI'er, så de vises i appen.
+  // Indlejr inline-billeder (cid:) som data-URI'er, så de vises i appen –
+  // inden for budgettet (se embedInlineImages), så svaret aldrig bliver for stort.
   if (html && inline.length > 0) {
-    let budget = MAX_INLINE_BYTES;
-    for (const img of inline) {
-      if (budget <= 0) break;
-      const buf = await fetchGmailAttachment(token, externalId, img.attachmentId);
-      if (!buf) continue;
-      budget -= buf.length;
-      const dataUri = `data:${img.mime};base64,${buf.toString("base64")}`;
-      html = (html as string).split(`cid:${img.contentId}`).join(dataUri);
-    }
+    html = await embedInlineImages(token, externalId, html, inline, { left: MAX_INLINE_BYTES });
   }
 
   base.bodyHtml = html ? sanitizeEmailHtml(html) : null;
@@ -200,11 +227,13 @@ function bareEmail(value: string | null): string | null {
   return (m ? m[1] : value).trim().toLowerCase();
 }
 
-/** Parser ÉN Gmail-besked (format=full JSON) til en ThreadMessage. */
+/** Parser ÉN Gmail-besked (format=full JSON) til en ThreadMessage.
+ *  `budget` deles med de andre beskeder i tråden (samlet inline-billed-loft). */
 async function parseGmailMessage(
   token: string,
   msg: Record<string, unknown>,
   userEmail: string | null,
+  budget: { left: number },
 ): Promise<ThreadMessage> {
   const payload = (msg.payload ?? {}) as GmailPart;
   const fromHeader = gmailHeader(payload, "From");
@@ -241,15 +270,7 @@ async function parseGmailMessage(
   });
 
   if (html && inline.length > 0) {
-    let budget = MAX_INLINE_BYTES;
-    for (const img of inline) {
-      if (budget <= 0) break;
-      const buf = await fetchGmailAttachment(token, msg.id as string, img.attachmentId);
-      if (!buf) continue;
-      budget -= buf.length;
-      const dataUri = `data:${img.mime};base64,${buf.toString("base64")}`;
-      html = (html as string).split(`cid:${img.contentId}`).join(dataUri);
-    }
+    html = await embedInlineImages(token, msg.id as string, html, inline, budget);
   }
 
   // "Fra mig" = beskeden har SENT-label, eller afsenderen er Lasses egen adresse.
@@ -292,9 +313,15 @@ async function loadGmailThread(
   const data = await res.json();
   const rawMessages = (data.messages ?? []) as Record<string, unknown>[];
 
-  const messages = await Promise.all(
-    rawMessages.map((m) => parseGmailMessage(token, m, userEmail)),
-  );
+  // ÉT delt inline-billed-budget for HELE tråden, så det samlede svar aldrig
+  // sprænger Vercels 4,5 MB-grænse (før havde hver besked sit eget 6 MB-budget
+  // → en tråd med flere billedtunge beskeder kunne give et kæmpe svar, der
+  // fejlede helt). Behandles sekventielt, så budgettet respekteres deterministisk.
+  const budget = { left: MAX_INLINE_BYTES };
+  const messages: ThreadMessage[] = [];
+  for (const m of rawMessages) {
+    messages.push(await parseGmailMessage(token, m, userEmail, budget));
+  }
   return {
     messages,
     repliedByUser: messages.some((m) => m.fromMe),
