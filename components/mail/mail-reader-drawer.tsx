@@ -66,7 +66,6 @@ export function MailReaderDrawer({
   const [sending, setSending] = React.useState(false);
   const [thread, setThread] = React.useState<EmailThread | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [failed, setFailed] = React.useState(false);
 
   // Håndtér-handlinger (arkivér/slet/videresend).
   const [busy, setBusy] = React.useState<null | "archive" | "trash">(null);
@@ -126,24 +125,48 @@ export function MailReaderDrawer({
 
   React.useEffect(() => {
     let active = true;
-    const load = readOnly
-      ? getEmailThreadByExternalId(mail.externalId ?? mail.id)
-      : getEmailThread(mail.id);
-    load
-      .then((t) => {
-        if (!active) return;
-        setThread(t);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!active) return;
-        setFailed(true);
-        setLoading(false);
-      });
+    (async () => {
+      let t: EmailThread | null = null;
+      try {
+        t = readOnly
+          ? await getEmailThreadByExternalId(mail.externalId ?? mail.id)
+          : await getEmailThread(mail.id);
+      } catch {
+        t = null;
+      }
+      // Kunne den fulde mail ikke hentes (fx et forældet DB-id lige efter en
+      // baggrunds-synk, eller et for stort svar), så vis ALTID mindst uddraget
+      // fra listen – så mailen ALTID kan åbnes, i stedet for en hård fejl.
+      if (!t || t.messages.length === 0) {
+        t = {
+          id: mail.id,
+          subject: mail.subject,
+          workspace: mail.workspace,
+          external_id: mail.externalId,
+          repliedByUser: mail.replied,
+          messages: [
+            {
+              messageId: mail.externalId ?? mail.id,
+              from: mail.from,
+              date: mail.receivedAt,
+              fromMe: false,
+              bodyHtml: null,
+              body:
+                mail.snippet ||
+                "Kunne ikke hente hele mailen lige nu – prøv igen om lidt.",
+              attachments: [],
+            },
+          ],
+        };
+      }
+      if (!active) return;
+      setThread(t);
+      setLoading(false);
+    })();
     return () => {
       active = false;
     };
-  }, [mail.id, mail.externalId, readOnly]);
+  }, [mail, readOnly]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -340,10 +363,9 @@ export function MailReaderDrawer({
                 <Loader2 className="size-4 animate-spin" />
                 Henter samtale…
               </div>
-            ) : failed || !thread || thread.messages.length === 0 ? (
-              <p className="text-sm text-destructive">
-                Kunne ikke hente mail-indhold. Tjek at {isWork ? "Outlook" : "Gmail"} er forbundet
-                under Indstillinger → Integrationer.
+            ) : !thread || thread.messages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Henter mail-indhold …
               </p>
             ) : (
               thread.messages.map((m, i) => (

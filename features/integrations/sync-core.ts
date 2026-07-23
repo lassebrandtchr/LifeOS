@@ -48,6 +48,90 @@ async function markSynced(
     .eq("connector_id", connectorId);
 }
 
+type EmailSyncRow = {
+  user_id: string;
+  source: string;
+  external_id: string | null;
+  subject: string | null;
+  snippet: string | null;
+  from_addr: string | null;
+  is_read: boolean;
+  received_at: string | null;
+  workspace: string;
+  category: string | null;
+};
+
+/**
+ * Skriver synkede mails ID-STABILT.
+ *
+ * Før brugte synk'en DELETE-alle + INSERT, så HVER mail fik et NYT DB-uuid ved
+ * hver synk. Men uuid'et er nøglen, når man ÅBNER/SVARER/SLETTER en mail i
+ * UI'et – så en baggrunds-synk (AutoSync hvert 15. min / cron) midt i en
+ * session gjorde de viste mails' id'er forældede, og et klik gav
+ * "Kunne ikke hente mail-indhold" (rækken var slettet + genindsat med nyt id).
+ *
+ * Nu matcher vi på det STABILE external_id (Gmail-/Outlook-beskedens eget id):
+ * eksisterende mails OPDATERES (uuid bevares), nye INDSÆTTES, og mails der ikke
+ * længere er i indbakken slettes. Så er et mail-id gyldigt på tværs af synk.
+ */
+async function writeEmailRowsStable(
+  supabase: SupabaseClient,
+  userId: string,
+  source: string,
+  rows: EmailSyncRow[],
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("emails")
+    .select("id, external_id")
+    .eq("user_id", userId)
+    .eq("source", source);
+
+  const idByExt = new Map<string, string>();
+  for (const r of existing ?? []) {
+    if (r.external_id) idByExt.set(r.external_id as string, r.id as string);
+  }
+
+  const incoming = new Set<string>();
+  const toInsert: EmailSyncRow[] = [];
+  const updates: PromiseLike<unknown>[] = [];
+
+  for (const row of rows) {
+    if (row.external_id) incoming.add(row.external_id);
+    const existingId = row.external_id ? idByExt.get(row.external_id) : undefined;
+    if (existingId) {
+      // Bevar uuid – opdatér kun felterne fra udbyderen.
+      updates.push(
+        supabase
+          .from("emails")
+          .update({
+            subject: row.subject,
+            snippet: row.snippet,
+            from_addr: row.from_addr,
+            is_read: row.is_read,
+            received_at: row.received_at,
+            workspace: row.workspace,
+            category: row.category,
+          })
+          .eq("id", existingId),
+      );
+    } else {
+      toInsert.push(row);
+    }
+  }
+
+  await Promise.all(updates);
+  if (toInsert.length > 0) await supabase.from("emails").insert(toInsert);
+
+  // Slet mails der ikke længere er i indbakken (kun for denne kilde).
+  const toDelete: string[] = [];
+  for (const [ext, id] of idByExt) {
+    if (!incoming.has(ext)) toDelete.push(id);
+  }
+  if (toDelete.length > 0) {
+    await supabase.from("emails").delete().in("id", toDelete);
+  }
+}
+
 /**
  * Udleder en prioritet ud fra deadline, når teksten ikke selv afslører den,
  * så ikke ALT lander som "kan vente".
@@ -160,8 +244,7 @@ export async function syncGmailCore(
       }),
     }));
 
-    await supabase.from("emails").delete().eq("user_id", userId).eq("source", "gmail");
-    await supabase.from("emails").insert(rows);
+    await writeEmailRowsStable(supabase, userId, "gmail", rows);
     await markSynced(supabase, userId, "gmail");
     return { source: "gmail", ok: true, count: rows.length };
   } catch (e) {
@@ -251,8 +334,7 @@ export async function syncOutlookMailCore(
       category: categorizeEmail({ from: m.from ?? "", subject: m.subject, snippet: m.snippet }),
     }));
 
-    await supabase.from("emails").delete().eq("user_id", userId).eq("source", "outlook");
-    await supabase.from("emails").insert(rows);
+    await writeEmailRowsStable(supabase, userId, "outlook", rows);
     await markSynced(supabase, userId, "outlook_mail");
     return { source: "outlook_mail", ok: true, count: rows.length };
   } catch (e) {
