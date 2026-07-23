@@ -368,7 +368,15 @@ export function MailReaderDrawer({
                 Henter mail-indhold …
               </p>
             ) : (
-              thread.messages.map((m, i) => (
+              <>
+                {/* Kunne den fulde mail ikke hentes, vises den præcise årsag
+                    (i stedet for tavst kun at vise uddraget). */}
+                {thread.loadError && (
+                  <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+                    Kunne ikke hente hele mailen (viser uddrag). Årsag: {thread.loadError}
+                  </div>
+                )}
+                {thread.messages.map((m, i) => (
                 <div
                   key={m.messageId}
                   className={cn(
@@ -398,7 +406,8 @@ export function MailReaderDrawer({
                     <div className="mt-1 h-px bg-transparent" />
                   )}
                 </div>
-              ))
+                ))}
+              </>
             )}
           </div>
 

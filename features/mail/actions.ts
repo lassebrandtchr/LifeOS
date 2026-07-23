@@ -58,6 +58,9 @@ export type EmailThread = {
   messages: ThreadMessage[];
   /** Har Lasse svaret i denne tråd? (styrer "Besvaret"-badgen) */
   repliedByUser: boolean;
+  /** Kunne den fulde mail IKKE hentes live? Bærer den præcise årsag, så
+   *  læseren kan vise HVORFOR (i stedet for en tavs "kun uddrag"-visning). */
+  loadError?: string;
 };
 
 // ─── Sanitering ───────────────────────────────────────────────────────────────
@@ -289,43 +292,74 @@ async function parseGmailMessage(
   };
 }
 
-/** Henter HELE Gmail-tråden (alle beskeder frem og tilbage). */
+/** Læser Googles egen fejlbesked ud af et ikke-ok svar (til diagnostik). */
+async function gmailErrReason(res: Response, label: string): Promise<string> {
+  const msg = await res
+    .json()
+    .then((b) => (b?.error?.message as string) ?? "")
+    .catch(() => "");
+  return `${label} ${res.status}${msg ? `: ${msg}` : ""}`;
+}
+
+/**
+ * Henter HELE Gmail-tråden (alle beskeder frem og tilbage).
+ *
+ * Robusthed: fejler tråd-hentningen (fx en meget stor tråd), falder vi tilbage
+ * til at hente den ENKELTE besked i fuldt format – så mailen næsten altid kan
+ * vises. `error` bærer Googles egen forklaring med, så UI'et kan vise PRÆCIS
+ * hvorfor, hvis alt fejler (i stedet for en tavs "kun uddrag"-visning).
+ * ÉT delt inline-billed-budget bruges på tværs, så svaret aldrig sprænger
+ * Vercels 4,5 MB-grænse.
+ */
 async function loadGmailThread(
   token: string,
   messageExternalId: string,
   userEmail: string | null,
-): Promise<{ messages: ThreadMessage[]; repliedByUser: boolean }> {
+): Promise<{ messages: ThreadMessage[]; repliedByUser: boolean; error?: string }> {
+  const budget = { left: MAX_INLINE_BYTES };
+
+  // Fald-tilbage: hent KUN den åbnede besked i fuldt format.
+  const loadSingle = async (reason: string) => {
+    const one = await fetch(
+      `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageExternalId}?format=full`,
+      { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    );
+    if (!one.ok) {
+      return {
+        messages: [],
+        repliedByUser: false,
+        error: `${reason}; ${await gmailErrReason(one, "besked")}`,
+      };
+    }
+    const m = await one.json();
+    const msg = await parseGmailMessage(token, m, userEmail, budget);
+    return { messages: [msg], repliedByUser: msg.fromMe };
+  };
+
   // 1) Find trådens id ud fra beskeden.
   const metaRes = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageExternalId}?format=minimal`,
     { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
   );
-  if (!metaRes.ok) return { messages: [], repliedByUser: false };
+  if (!metaRes.ok) return loadSingle(await gmailErrReason(metaRes, "meta"));
   const threadId = (await metaRes.json()).threadId as string | undefined;
-  if (!threadId) return { messages: [], repliedByUser: false };
+  if (!threadId) return loadSingle("intet threadId");
 
-  // 2) Hent hele tråden i fuldt format.
+  // 2) Hent hele tråden i fuldt format (fald tilbage til enkelt-besked ved fejl).
   const res = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`,
     { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
   );
-  if (!res.ok) return { messages: [], repliedByUser: false };
+  if (!res.ok) return loadSingle(await gmailErrReason(res, "tråd"));
   const data = await res.json();
   const rawMessages = (data.messages ?? []) as Record<string, unknown>[];
+  if (rawMessages.length === 0) return loadSingle("tom tråd");
 
-  // ÉT delt inline-billed-budget for HELE tråden, så det samlede svar aldrig
-  // sprænger Vercels 4,5 MB-grænse (før havde hver besked sit eget 6 MB-budget
-  // → en tråd med flere billedtunge beskeder kunne give et kæmpe svar, der
-  // fejlede helt). Behandles sekventielt, så budgettet respekteres deterministisk.
-  const budget = { left: MAX_INLINE_BYTES };
   const messages: ThreadMessage[] = [];
   for (const m of rawMessages) {
     messages.push(await parseGmailMessage(token, m, userEmail, budget));
   }
-  return {
-    messages,
-    repliedByUser: messages.some((m) => m.fromMe),
-  };
+  return { messages, repliedByUser: messages.some((m) => m.fromMe) };
 }
 
 // ─── Outlook (Microsoft Graph) helpers ────────────────────────────────────────
@@ -531,6 +565,9 @@ export async function getEmailThread(
         const t = await loadGmailThread(token, base.external_id, conn?.email ?? null);
         base.messages = t.messages;
         base.repliedByUser = t.repliedByUser;
+        if (t.error) base.loadError = t.error;
+      } else {
+        base.loadError = "Gmail-token mangler (forbindelsen kan være udløbet – forbind igen under Indstillinger).";
       }
     } else if (base.external_id && source === "outlook") {
       const token = await getValidMicrosoftToken();
