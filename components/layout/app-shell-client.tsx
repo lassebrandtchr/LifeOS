@@ -4,7 +4,6 @@ import { useState } from "react";
 
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { MobileNav } from "@/components/layout/mobile-nav";
 import { AmbientBackground } from "@/components/layout/ambient-background";
 import { AutoSync } from "@/components/layout/auto-sync";
 import { ReminderWatcher } from "@/components/layout/reminder-watcher";
@@ -77,16 +76,14 @@ function ShellLayout({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={user} notifications={notifications} />
-        {/* Plads til mobilmenuen i bunden: dens højde (min. 4rem) + luft +
-            telefonens safe-area (hjemme-indikatoren). Var før en fast pb-24,
-            som ikke tog højde for safe-area og derfor kunne lade indholdet
-            gemme sig bag baren på iPhone. */}
-        <main className="flex-1 px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 lg:px-8 lg:pb-10">
+        {/* Bund-tab-baren er fjernet – navigation på mobil sker nu via
+            hamburger-menuen (fuldskærms-overlay) øverst til højre. Der er derfor
+            ikke længere brug for stor bund-margen; kun luft + telefonens
+            safe-area (hjemme-indikatoren), så indholdet ikke klæber til kanten. */}
+        <main className="flex-1 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6 lg:px-8 lg:pb-10">
           {children}
         </main>
       </div>
-
-      <MobileNav />
     </div>
   );
 }

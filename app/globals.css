@@ -593,6 +593,22 @@
   .glass-card-strong {
     background-color: var(--card);
   }
+
+  /* HVID SKÆRM VED SCROLL/TASTNING på mobil: `background-attachment: fixed`
+     tvinger browseren til at gen-komponere den fastgjorte baggrund mod indholdet
+     i hver frame. iOS Safari + Android Chrome fejler ofte og viser en blank/hvid
+     skærm – især når adresselinjen skjules ved scroll, eller keyboardet åbner
+     ved tastning. På mobil scroller baggrunden derfor bare med. */
+  body {
+    background-attachment: scroll;
+  }
+
+  /* De tre store, animerede blur(64px)-baggrunds-blobs (AmbientBackground) er
+     tunge fixed compositor-lag, der kan give blanke frames/hvid skærm ved scroll
+     på telefon. De er rent dekorative → skjul dem helt på mobil. */
+  .ambient-bg {
+    display: none !important;
+  }
 }
 
 /* Venstre-menu – grøn gradient-flade (mørk i dark mode, dyb grøn i light mode) */

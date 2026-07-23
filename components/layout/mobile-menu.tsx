@@ -5,22 +5,25 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ChevronRight } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { mainNav } from "@/config/navigation";
+import { Logo } from "@/components/shared/logo";
+import { siteConfig } from "@/config/site";
 import { GlobalSearch } from "@/components/layout/global-search";
 
 /**
- * MobileMenu – "Menu"-knap i topbaren, som KUN vises på mobil.
+ * MobileMenu – hamburger-knap øverst til højre (kun mobil) + FULDSKÆRMS-overlay
+ * med HELE navigationen.
  *
- * HVORFOR DEN FINDES: sidebaren er skjult på mobil (hidden … lg:flex), og
- * bund-tab-baren viser kun 4 af de 9 sider. Mail, Kalender, Opgaver og
- * Markedsføring kunne derfor SLET IKKE nås fra en telefon – de virkede kun på
- * desktop. Global søgning var på samme måde skjult (hidden … md:flex).
+ * På mobil er desktop-sidebaren skjult, og bund-tab-baren er fjernet – AL
+ * navigation sker herfra. Menuen viser alle 9 undersider (samme som desktop) +
+ * den globale søgning, så intet på telefonen mangler i forhold til computeren.
  *
- * Denne menu giver adgang til HELE navigationen + søgningen på mobil, så alt
- * der virker på desktop også kan bruges på telefonen.
+ * Overlayet er BEVIDST uigennemsigtigt (bg-background, ingen blur): blur/
+ * gennemsigtige fixed-lag er præcis det, der giver hvid skærm/flimmer på
+ * mobil-browsere.
  */
 export function MobileMenu() {
   const [open, setOpen] = React.useState(false);
@@ -34,12 +37,17 @@ export function MobileMenu() {
     setOpen(false);
   }, [pathname]);
 
-  // Escape lukker.
+  // Escape lukker + lås baggrunds-scroll mens menuen er åben.
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
   }, [open]);
 
   return (
@@ -48,9 +56,10 @@ export function MobileMenu() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Åbn menu"
-        className="flex size-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden"
+        aria-expanded={open}
+        className="flex size-9 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-secondary lg:hidden"
       >
-        <Menu className="size-5" />
+        <Menu className="size-6" />
       </button>
 
       {mounted &&
@@ -58,41 +67,37 @@ export function MobileMenu() {
           <AnimatePresence>
             {open && (
               <motion.div
-                className="fixed inset-0 z-50 flex flex-col justify-end bg-black/50 lg:hidden"
+                className="fixed inset-0 z-[60] flex flex-col bg-background lg:hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                onPointerDown={(e) =>
-                  e.target === e.currentTarget && setOpen(false)
-                }
+                transition={{ duration: 0.18, ease: "easeOut" }}
               >
-                <motion.div
-                  className="max-h-[85vh] overflow-y-auto rounded-t-card border-t border-border/70 bg-card pb-[calc(1rem+env(safe-area-inset-bottom))]"
-                  initial={{ y: "100%" }}
-                  animate={{ y: 0 }}
-                  exit={{ y: "100%" }}
-                  transition={{ type: "spring", stiffness: 320, damping: 32 }}
-                >
-                  <div className="flex items-center justify-between gap-3 border-b border-border/60 px-5 py-3">
-                    <h2 className="text-base font-semibold">Menu</h2>
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      aria-label="Luk menu"
-                      className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                    >
-                      <X className="size-4" />
-                    </button>
+                {/* Header – logo + luk. pt-safe så luk-knappen ikke havner
+                    under telefonens notch/statusbjælke. */}
+                <div className="flex h-16 shrink-0 items-center justify-between gap-3 border-b border-border/60 px-5 pt-[env(safe-area-inset-top)]">
+                  <div className="flex items-center gap-2">
+                    <Logo size={34} animated={false} />
+                    <span className="text-base font-semibold">{siteConfig.name}</span>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    aria-label="Luk menu"
+                    className="flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                  >
+                    <X className="size-6" />
+                  </button>
+                </div>
 
-                  {/* Søgning – var før kun tilgængelig på desktop. */}
-                  <div className="px-5 pt-4">
-                    <GlobalSearch />
-                  </div>
+                {/* Indhold – scroller hvis nødvendigt. */}
+                <div className="flex-1 overflow-y-auto px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-5">
+                  {/* Søgning (var før kun på desktop). */}
+                  <GlobalSearch />
 
-                  {/* HELE navigationen – ikke kun de 4 i bund-baren. */}
-                  <nav className="grid grid-cols-2 gap-2 p-5">
-                    {mainNav.map((item) => {
+                  {/* HELE navigationen som store, letramte rækker. */}
+                  <nav className="mt-5 space-y-2">
+                    {mainNav.map((item, i) => {
                       const isActive =
                         item.href === "/"
                           ? pathname === "/"
@@ -100,27 +105,40 @@ export function MobileMenu() {
                       const Icon = item.icon;
 
                       return (
-                        <Link
+                        <motion.div
                           key={item.href}
-                          href={item.href}
-                          onClick={() => setOpen(false)}
-                          className={cn(
-                            "flex min-h-14 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-medium leading-tight transition-colors",
-                            isActive
-                              ? "border-primary/40 bg-primary/10 text-primary"
-                              : "border-border/60 bg-secondary/30 text-foreground hover:bg-secondary",
-                          )}
+                          initial={{ opacity: 0, x: 16 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.03 * i + 0.05, duration: 0.2, ease: "easeOut" }}
                         >
-                          <span aria-hidden className="text-base">
-                            {item.emoji}
-                          </span>
-                          <Icon className="size-4 shrink-0" />
-                          <span className="min-w-0 flex-1">{item.label}</span>
-                        </Link>
+                          <Link
+                            href={item.href}
+                            onClick={() => setOpen(false)}
+                            aria-current={isActive ? "page" : undefined}
+                            className={cn(
+                              "flex min-h-[3.75rem] items-center gap-3 rounded-2xl border px-4 py-3 text-base font-medium transition-colors",
+                              isActive
+                                ? "border-primary/40 bg-primary/10 text-primary"
+                                : "border-border/60 bg-secondary/30 text-foreground active:bg-secondary",
+                            )}
+                          >
+                            <span aria-hidden className="text-xl">
+                              {item.emoji}
+                            </span>
+                            <Icon className="size-5 shrink-0" />
+                            <span className="min-w-0 flex-1">{item.label}</span>
+                            <ChevronRight
+                              className={cn(
+                                "size-5 shrink-0",
+                                isActive ? "text-primary" : "text-muted-foreground/50",
+                              )}
+                            />
+                          </Link>
+                        </motion.div>
                       );
                     })}
                   </nav>
-                </motion.div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>,
