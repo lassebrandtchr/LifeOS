@@ -32,7 +32,11 @@ export type ActionSourceLabel =
 export type ActionItem = {
   id: string;
   priority: Priority;
+  /** Ren tekst-titel (til logik, emne-udledning, aria + fald-tilbage). */
   title: string;
+  /** Opgavens RÅ rig-tekst-emne (HTML), så fed/kursiv kan VISES i rækken.
+   *  Kun sat for opgave-elementer uden en regel-omdøbning; ellers udeladt. */
+  titleHtml?: string;
   context: string;
   sourceLabel: ActionSourceLabel;
   task?: Task;
@@ -232,6 +236,9 @@ export function buildActionList(
       id: match ? `task:${task.id}+mail:${match.id}` : `task:${task.id}`,
       priority: task.priority,
       title,
+      // Vis opgavens rig-tekst-emne (fed/kursiv osv.) i rækken – men kun når
+      // teksten ikke er erstattet af en regel-titel.
+      titleHtml: rule && rule.title ? undefined : task.title,
       context: match ? match.snippet : (task.description || stripHtmlInline(task.notes)).slice(0, 140),
       sourceLabel: match ? "Fra mail + opgave" : "Fra opgavesystemet",
       task,

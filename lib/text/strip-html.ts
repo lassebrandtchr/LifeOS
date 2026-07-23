@@ -30,3 +30,52 @@ export function isHtmlEmpty(html: string | null | undefined): boolean {
 export function stripHtmlInline(html: string | null | undefined): string {
   return stripHtml(html).replace(/\s+/g, " ").trim();
 }
+
+/** Inline-formaterings-tags vi tillader vist (fed/kursiv/understreg osv.). */
+const INLINE_ALLOWED = new Set([
+  "b", "strong", "i", "em", "u", "s", "strike", "del", "span", "mark", "sub", "sup",
+]);
+/** CSS-egenskaber vi tillader på <span style="…"> (fra rig-tekst-editoren). */
+const SAFE_STYLE = /^(color|background-color|font-weight|font-style|text-decoration|font-size)\s*:/i;
+
+/**
+ * Gør rig-tekst-HTML (fra RichTextEditor) sikker at VISE på ÉN linje, med
+ * INLINE-formatering bevaret (fed, kursiv, understreg, farve, skriftstørrelse).
+ *
+ * Bruges hvor vi vil se opgavens emne-formatering (fx Action-listen), i stedet
+ * for stripHtml der fjerner ALT. Bælte & seler: farlige blokke fjernes helt,
+ * blok-elementer + linjeskift bliver til mellemrum (holder det på én linje), og
+ * KUN whitelisted inline-tags beholdes – alle andre tags fjernes (men deres
+ * tekst bevares). På <span> beholdes kun en sikker delmængde af `style`.
+ * Al øvrig markup (scripts, links, on*-handlers, billeder …) forsvinder.
+ */
+export function formatInlineHtml(html: string | null | undefined): string {
+  if (!html) return "";
+  let s = html
+    // Farlige blokke: fjern indhold + tags.
+    .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "")
+    // Blok-elementer + linjeskift → mellemrum (én-linjes visning).
+    .replace(/<\/?(p|div|h[1-6]|ul|ol|li|blockquote|pre|table|thead|tbody|tr|td|th)\b[^>]*>/gi, " ")
+    .replace(/<br\s*\/?>(?=)/gi, " ");
+
+  // Gennemgå hver tag: behold kun tilladte inline-tags (uden attributter,
+  // undtagen en saniteret style på <span>). Ikke-tilladte tags fjernes helt.
+  s = s.replace(/<(\/?)([a-zA-Z0-9]+)((?:[^>"']|"[^"]*"|'[^']*')*)>/g, (_m, close, tag, attrs) => {
+    const t = String(tag).toLowerCase();
+    if (!INLINE_ALLOWED.has(t)) return "";
+    if (close) return `</${t}>`;
+    if (t === "span") {
+      const m = String(attrs).match(/style\s*=\s*("([^"]*)"|'([^']*)')/i);
+      const raw = m ? (m[2] ?? m[3] ?? "") : "";
+      const safe = raw
+        .split(";")
+        .map((d) => d.trim())
+        .filter((d) => SAFE_STYLE.test(d))
+        .join("; ");
+      return safe ? `<span style="${safe}">` : "<span>";
+    }
+    return `<${t}>`;
+  });
+
+  return s.replace(/\s+/g, " ").trim();
+}

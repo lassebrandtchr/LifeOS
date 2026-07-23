@@ -17,6 +17,7 @@ import {
   Reply,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatInlineHtml } from "@/lib/text/strip-html";
 import type { GreetingResult } from "@/features/dashboard/greeting";
 import type { DashboardData, DashboardEmail, DashboardEvent } from "@/features/dashboard/stats";
 import { siteConfig } from "@/config/site";
@@ -878,10 +879,16 @@ function FokusPanel({
                     <button
                       type="button"
                       onClick={() => open({ type: "task", task: item.task! })}
-                      className="text-left text-sm font-medium leading-snug hover:underline"
-                    >
-                      {item.title}
-                    </button>
+                      className="text-left text-sm font-medium leading-snug hover:underline [&_*]:inline"
+                      {...(item.titleHtml
+                        ? { dangerouslySetInnerHTML: { __html: formatInlineHtml(item.titleHtml) } }
+                        : { children: item.title })}
+                    />
+                  ) : item.titleHtml ? (
+                    <span
+                      className="text-sm font-medium leading-snug [&_*]:inline"
+                      dangerouslySetInnerHTML={{ __html: formatInlineHtml(item.titleHtml) }}
+                    />
                   ) : (
                     <span className="text-sm font-medium leading-snug">{item.title}</span>
                   )}

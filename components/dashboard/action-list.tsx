@@ -8,6 +8,7 @@ import { Check, Phone, Mail, Car, ListTodo, RefreshCw, Plus, ArrowRight, Calenda
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
+import { formatInlineHtml } from "@/lib/text/strip-html";
 import { SectionCard } from "@/components/dashboard/section-card";
 import { useOpenDetail } from "@/components/tasks/detail-context";
 import { setTaskStatus, quickCreateTask } from "@/features/tasks/actions";
@@ -303,7 +304,17 @@ function ActionRow({
               <UserRound className="size-3" />
             </span>
           )}
-          <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
+          {/* Vis opgavens emne MED formatering (fed/kursiv/farve), når det er
+              en opgave med rig tekst. Indholdet er saniteret til sikre
+              inline-tags i formatInlineHtml. Ellers ren tekst. */}
+          {item.titleHtml ? (
+            <p
+              className="min-w-0 flex-1 truncate text-sm font-medium leading-snug [&_*]:inline"
+              dangerouslySetInnerHTML={{ __html: formatInlineHtml(item.titleHtml) }}
+            />
+          ) : (
+            <p className="min-w-0 flex-1 truncate text-sm font-medium leading-snug">{item.title}</p>
+          )}
         </div>
         {item.context && (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.context}</p>
