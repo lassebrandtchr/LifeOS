@@ -579,8 +579,12 @@ export async function getEmailThread(
         base.repliedByUser = t.repliedByUser;
       }
     }
-  } catch {
-    // live-hentning fejlede – vi falder tilbage til det gemte uddrag nedenfor
+  } catch (e) {
+    // Live-hentning fejlede uventet – fald tilbage til uddraget nedenfor, men
+    // bær årsagen med, så læseren kan vise HVORFOR (ikke bare tavst kun uddrag).
+    if (!base.loadError) {
+      base.loadError = e instanceof Error ? e.message : "ukendt fejl ved hentning";
+    }
   }
 
   // FALDER LIVE-HENTNINGEN UD, så mailen ALTID kan åbnes: byg én besked af det

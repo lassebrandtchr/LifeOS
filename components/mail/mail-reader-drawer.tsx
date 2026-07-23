@@ -127,12 +127,15 @@ export function MailReaderDrawer({
     let active = true;
     (async () => {
       let t: EmailThread | null = null;
+      let clientErr: string | null = null;
       try {
         t = readOnly
           ? await getEmailThreadByExternalId(mail.externalId ?? mail.id)
           : await getEmailThread(mail.id, mail.externalId);
-      } catch {
+      } catch (e) {
+        // Selve server-kaldet fejlede (fx timeout på en langsom database/Gmail).
         t = null;
+        clientErr = e instanceof Error ? e.message : "kaldet fejlede (timeout?)";
       }
       // Kunne den fulde mail ikke hentes (fx et forældet DB-id lige efter en
       // baggrunds-synk, eller et for stort svar), så vis ALTID mindst uddraget
@@ -144,6 +147,7 @@ export function MailReaderDrawer({
           workspace: mail.workspace,
           external_id: mail.externalId,
           repliedByUser: mail.replied,
+          loadError: t?.loadError ?? clientErr ?? undefined,
           messages: [
             {
               messageId: mail.externalId ?? mail.id,
