@@ -529,6 +529,7 @@ export async function getEmailThread(
   emailId: string,
   externalIdHint?: string | null,
 ): Promise<EmailThread | null> {
+ try {
   const supabase = await createClient();
   const cols = "id, subject, workspace, external_id, source, snippet, from_addr, received_at";
   // Slå op på DB-id, og fald tilbage til det STABILE external_id: efter en synk
@@ -626,6 +627,27 @@ export async function getEmailThread(
     }
   }
   return base;
+ } catch (e) {
+  // FANG ALT: en uventet fejl her blev ellers en generisk (redigeret)
+  // "Server Components render"-fejl på klienten, uden en brugbar årsag. Ved at
+  // fange den HER (på serveren) kan vi returnere den RIGTIGE besked i loadError
+  // – den redigeres kun, når fejlen slipper UD til klienten. Så mailen kan
+  // stadig åbnes (uddrag), og den gule banner viser præcis hvad der gik galt.
+  console.error("[getEmailThread] uventet fejl:", e);
+  const digest = (e as { digest?: string })?.digest;
+  return {
+    id: emailId,
+    subject: null,
+    workspace: "private",
+    external_id: externalIdHint ?? null,
+    repliedByUser: false,
+    messages: [],
+    loadError:
+      e instanceof Error
+        ? `${e.message}${digest ? ` [digest ${digest}]` : ""}`
+        : "ukendt serverfejl",
+  };
+ }
 }
 
 /**
