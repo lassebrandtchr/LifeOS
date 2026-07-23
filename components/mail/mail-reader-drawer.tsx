@@ -76,7 +76,7 @@ export function MailReaderDrawer({
 
   async function handleArchive() {
     setBusy("archive");
-    const res = await archiveEmail(mail.id).catch(() => ({ error: "fejl" }));
+    const res = await archiveEmail(mail.id, mail.externalId).catch(() => ({ error: "fejl" }));
     setBusy(null);
     if ((res as { error?: string })?.error) {
       toast.error((res as { error?: string }).error ?? "Kunne ikke arkivere.");
@@ -90,7 +90,7 @@ export function MailReaderDrawer({
   async function handleTrash() {
     if (!confirm("Flyt denne mail til Gmails papirkurv?")) return;
     setBusy("trash");
-    const res = await trashEmail(mail.id).catch(() => ({ error: "fejl" }));
+    const res = await trashEmail(mail.id, mail.externalId).catch(() => ({ error: "fejl" }));
     setBusy(null);
     if ((res as { error?: string })?.error) {
       toast.error((res as { error?: string }).error ?? "Kunne ikke slette.");
@@ -104,7 +104,7 @@ export function MailReaderDrawer({
   async function handleForward() {
     if (!forwardTo.trim() || forwarding) return;
     setForwarding(true);
-    const res = await forwardEmail(mail.id, forwardTo, forwardNote);
+    const res = await forwardEmail(mail.id, forwardTo, forwardNote, mail.externalId);
     setForwarding(false);
     if (res?.error) {
       toast.error(res.error);
@@ -130,7 +130,7 @@ export function MailReaderDrawer({
       try {
         t = readOnly
           ? await getEmailThreadByExternalId(mail.externalId ?? mail.id)
-          : await getEmailThread(mail.id);
+          : await getEmailThread(mail.id, mail.externalId);
       } catch {
         t = null;
       }
@@ -177,7 +177,7 @@ export function MailReaderDrawer({
   async function handleSend() {
     if (!replyText.trim() || sending) return;
     setSending(true);
-    const res = await sendEmailReply(mail.id, replyText);
+    const res = await sendEmailReply(mail.id, replyText, mail.externalId);
     setSending(false);
     if (res.ok) {
       toast.success("Svar sendt ✓");
@@ -194,7 +194,7 @@ export function MailReaderDrawer({
     const prev = category;
     setCategory(next); // optimistisk
     setSavingCat(true);
-    const res = await setEmailCategory(mail.id, next);
+    const res = await setEmailCategory(mail.id, next, mail.externalId);
     setSavingCat(false);
     if (res?.error) {
       setCategory(prev); // rul tilbage

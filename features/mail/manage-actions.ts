@@ -72,44 +72,79 @@ export async function recategorizeAllEmails(): Promise<{
 
 // ─────────────────────────── Arkivér / slet / flyt ───────────────────────────
 
-/** Fælles: find mailens Gmail-id + tjek at det er en Gmail-mail. */
-async function gmailContext(emailId: string) {
+/**
+ * Fælles: find mailens Gmail-id + token.
+ *
+ * ROBUST mod forældede DB-id'er: slår først op på DB-uuid'et, men falder tilbage
+ * til det STABILE external_id (Gmail-beskedens eget id). Efter en synk kan
+ * DB-uuid'et være skiftet, eller mailen kan være faldet ud af de synkede top-25
+ * – men external_id peger altid på den rigtige mail i Gmail. `externalIdHint`
+ * sendes af UI'et (det ligger på mail-objektet), så handlinger som slet/arkivér
+ * virker selv om DB-rækken ikke længere kan findes på id.
+ */
+async function gmailContext(emailId: string, externalIdHint?: string | null) {
   const a = await auth();
   if (!a) return { error: "Ikke logget ind." as const };
-  const { data } = await a.supabase
-    .from("emails")
-    .select("external_id, source, workspace")
-    .eq("id", emailId)
-    .eq("user_id", a.userId)
-    .maybeSingle();
-  if (!data?.external_id) return { error: "Mail ikke fundet." as const };
+  const cols = "id, external_id, source, workspace";
+  let row =
+    (
+      await a.supabase
+        .from("emails")
+        .select(cols)
+        .eq("id", emailId)
+        .eq("user_id", a.userId)
+        .maybeSingle()
+    ).data;
+  if (!row && externalIdHint) {
+    row = (
+      await a.supabase
+        .from("emails")
+        .select(cols)
+        .eq("external_id", externalIdHint)
+        .eq("user_id", a.userId)
+        .maybeSingle()
+    ).data;
+  }
+  const externalId = (row?.external_id as string | null) ?? externalIdHint ?? null;
+  if (!externalId) return { error: "Mail ikke fundet." as const };
   const source =
-    (data.source as string | null) ?? ((data.workspace as string) === "work" ? "outlook" : "gmail");
+    (row?.source as string | null) ??
+    ((row?.workspace as string) === "work" ? "outlook" : "gmail");
   if (source !== "gmail") return { error: "Understøttes indtil videre kun for Gmail." as const };
   const token = await getValidAccessToken();
   if (!token) return { error: "Gmail er ikke forbundet." as const };
-  return { a, token, externalId: data.external_id as string };
+  return { a, token, externalId, dbId: (row?.id as string | null) ?? null };
 }
 
 /** Arkivér: fjern fra indbakken (beholdes i Gmail under Al post). */
-export async function archiveEmail(emailId: string): Promise<{ ok?: true; error?: string }> {
-  const ctx = await gmailContext(emailId);
+export async function archiveEmail(
+  emailId: string,
+  externalId?: string | null,
+): Promise<{ ok?: true; error?: string }> {
+  const ctx = await gmailContext(emailId, externalId);
   if ("error" in ctx) return { error: ctx.error };
   const ok = await modifyGmailLabels(ctx.token, ctx.externalId, { remove: ["INBOX"] });
   if (!ok) return { error: "Kunne ikke arkivere i Gmail." };
   // Fjern fra den lokale indbakke-visning (den er ikke i indbakken længere).
-  await ctx.a.supabase.from("emails").delete().eq("id", emailId).eq("user_id", ctx.a.userId);
+  if (ctx.dbId) {
+    await ctx.a.supabase.from("emails").delete().eq("id", ctx.dbId).eq("user_id", ctx.a.userId);
+  }
   revalidateMail();
   return { ok: true };
 }
 
 /** Slet: flyt til Gmails papirkurv (kan gendannes i 30 dage). */
-export async function trashEmail(emailId: string): Promise<{ ok?: true; error?: string }> {
-  const ctx = await gmailContext(emailId);
+export async function trashEmail(
+  emailId: string,
+  externalId?: string | null,
+): Promise<{ ok?: true; error?: string }> {
+  const ctx = await gmailContext(emailId, externalId);
   if ("error" in ctx) return { error: ctx.error };
   const ok = await trashGmailMessage(ctx.token, ctx.externalId);
   if (!ok) return { error: "Kunne ikke slette i Gmail." };
-  await ctx.a.supabase.from("emails").delete().eq("id", emailId).eq("user_id", ctx.a.userId);
+  if (ctx.dbId) {
+    await ctx.a.supabase.from("emails").delete().eq("id", ctx.dbId).eq("user_id", ctx.a.userId);
+  }
   revalidateMail();
   return { ok: true };
 }
@@ -129,7 +164,9 @@ export async function moveEmailToFolder(
     remove: ["INBOX"],
   });
   if (!ok) return { error: "Kunne ikke flytte mailen i Gmail." };
-  await ctx.a.supabase.from("emails").delete().eq("id", emailId).eq("user_id", ctx.a.userId);
+  if (ctx.dbId) {
+    await ctx.a.supabase.from("emails").delete().eq("id", ctx.dbId).eq("user_id", ctx.a.userId);
+  }
   revalidateMail();
   return { ok: true };
 }
@@ -139,11 +176,12 @@ export async function forwardEmail(
   emailId: string,
   to: string,
   note: string,
+  externalId?: string | null,
 ): Promise<{ ok?: true; error?: string }> {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to.trim())) {
     return { error: "Skriv en gyldig modtager-e-mail." };
   }
-  const ctx = await gmailContext(emailId);
+  const ctx = await gmailContext(emailId, externalId);
   if ("error" in ctx) return { error: ctx.error };
 
   try {

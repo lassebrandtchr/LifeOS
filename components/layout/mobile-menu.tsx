@@ -102,7 +102,6 @@ export function MobileMenu() {
                         item.href === "/"
                           ? pathname === "/"
                           : pathname.startsWith(item.href);
-                      const Icon = item.icon;
 
                       return (
                         <motion.div
@@ -122,10 +121,11 @@ export function MobileMenu() {
                                 : "border-border/60 bg-secondary/30 text-foreground active:bg-secondary",
                             )}
                           >
-                            <span aria-hidden className="text-xl">
+                            {/* Kun emoji'en som ikon – lucide-ikonet var et
+                                dobbelt-logo lige efter emoji'en (Lasses ønske: fjern det). */}
+                            <span aria-hidden className="w-6 text-center text-xl">
                               {item.emoji}
                             </span>
-                            <Icon className="size-5 shrink-0" />
                             <span className="min-w-0 flex-1">{item.label}</span>
                             <ChevronRight
                               className={cn(

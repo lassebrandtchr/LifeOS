@@ -491,27 +491,37 @@ async function loadOutlookThread(
  * Henter HELE mail-tråden (samtale frem og tilbage) i fuldt format, så man kan
  * læse hele korrespondancen – og se om Lasse selv har svaret (repliedByUser).
  */
-export async function getEmailThread(emailId: string): Promise<EmailThread | null> {
+export async function getEmailThread(
+  emailId: string,
+  externalIdHint?: string | null,
+): Promise<EmailThread | null> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("emails")
-    .select("id, subject, workspace, external_id, source, snippet, from_addr, received_at")
-    .eq("id", emailId)
-    .maybeSingle();
-  if (!data) return null;
+  const cols = "id, subject, workspace, external_id, source, snippet, from_addr, received_at";
+  // Slå op på DB-id, og fald tilbage til det STABILE external_id: efter en synk
+  // kan DB-uuid'et være forældet (eller mailen faldet ud af de synkede top-25),
+  // mens external_id (Gmail-/Outlook-beskedens eget id) altid er gyldigt. UI'et
+  // sender external_id med, så mailen ALTID kan hentes live fra udbyderen.
+  let data = (
+    await supabase.from("emails").select(cols).eq("id", emailId).maybeSingle()
+  ).data;
+  if (!data && externalIdHint) {
+    data = (
+      await supabase.from("emails").select(cols).eq("external_id", externalIdHint).maybeSingle()
+    ).data;
+  }
+  const externalId = (data?.external_id as string | null) ?? externalIdHint ?? null;
+  if (!data && !externalId) return null;
 
   const base: EmailThread = {
-    id: data.id as string,
-    subject: (data.subject as string | null) ?? null,
-    workspace: data.workspace as string,
-    external_id: (data.external_id as string | null) ?? null,
+    id: (data?.id as string | null) ?? emailId,
+    subject: (data?.subject as string | null) ?? null,
+    workspace: (data?.workspace as string | null) ?? "private",
+    external_id: externalId,
     messages: [],
     repliedByUser: false,
   };
-  // Har mailen intet udbyder-id, springer vi live-hentningen over og lander på
-  // uddrags-fallback'en nedenfor – i stedet for at returnere en TOM tråd (som
-  // fik læseren til at vise den hårde "Kunne ikke hente mail-indhold"-fejl).
-  const source = (data.source as string | null) ?? (base.workspace === "work" ? "outlook" : "gmail");
+  const source =
+    (data?.source as string | null) ?? (base.workspace === "work" ? "outlook" : "gmail");
   try {
     if (base.external_id && source === "gmail") {
       const token = await getValidAccessToken();
@@ -545,12 +555,12 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
     base.messages = [
       {
         messageId: base.external_id ?? base.id,
-        from: (data.from_addr as string | null) ?? null,
-        date: (data.received_at as string | null) ?? null,
+        from: (data?.from_addr as string | null) ?? null,
+        date: (data?.received_at as string | null) ?? null,
         fromMe: false,
         bodyHtml: null,
         body:
-          (data.snippet as string | null) ??
+          (data?.snippet as string | null) ??
           "Kunne ikke hente hele mailen lige nu – prøv igen om lidt.",
         attachments: [],
       },
@@ -561,15 +571,18 @@ export async function getEmailThread(emailId: string): Promise<EmailThread | nul
   // svaret blev sendt i Gmail/Outlook direkte), så markér "besvaret". Sætter
   // aldrig noget FALSK – kun opgraderer. Defensivt: 'replied' findes måske
   // ikke endnu (migration 0017), så et fejlet update må ikke vælte visningen.
-  try {
-    await supabase.from("emails").update({ is_read: true }).eq("id", emailId);
-    if (base.repliedByUser) {
-      await supabase.from("emails").update({ replied: true }).eq("id", emailId);
+  const dbId = data?.id as string | null;
+  if (dbId) {
+    try {
+      await supabase.from("emails").update({ is_read: true }).eq("id", dbId);
+      if (base.repliedByUser) {
+        await supabase.from("emails").update({ replied: true }).eq("id", dbId);
+      }
+      revalidatePath("/mail");
+      revalidatePath("/");
+    } catch {
+      /* markering ikke kritisk */
     }
-    revalidatePath("/mail");
-    revalidatePath("/");
-  } catch {
-    /* markering ikke kritisk */
   }
   return base;
 }
@@ -723,6 +736,7 @@ export async function getEmailAttachment(
 export async function setEmailCategory(
   emailId: string,
   categoryId: string | null,
+  externalIdHint?: string | null,
 ): Promise<{ ok?: true; error?: string }> {
   const supabase = await createClient();
   const {
@@ -734,27 +748,34 @@ export async function setEmailCategory(
   const cat = categoryId ? categoryById(categoryId) : null;
   if (categoryId && !cat) return { error: "Ukendt kategori." };
 
-  const { data, error } = await supabase
+  // Slå rækken op (id → stabilt external_id-fald-tilbage), så et forældet
+  // DB-uuid efter en synk ikke får kategori-ændringen til at ramme 0 rækker.
+  const cols = "id, external_id, source";
+  let row = (await supabase.from("emails").select(cols).eq("id", emailId).eq("user_id", user.id).maybeSingle()).data;
+  if (!row && externalIdHint) {
+    row = (await supabase.from("emails").select(cols).eq("external_id", externalIdHint).eq("user_id", user.id).maybeSingle()).data;
+  }
+  if (!row) return { error: "Mail ikke fundet." };
+
+  const { error } = await supabase
     .from("emails")
     .update({ category: cat?.id ?? null })
-    .eq("id", emailId)
-    .eq("user_id", user.id)
-    .select("external_id, source")
-    .maybeSingle();
+    .eq("id", row.id as string)
+    .eq("user_id", user.id);
 
   if (error) return { error: error.message };
 
   // Spejl til den rigtige Gmail-label (best effort – aldrig blokerende).
   if (
     cat?.gmailLabelId &&
-    data?.external_id &&
-    ((data.source as string | null) ?? "gmail") === "gmail"
+    row.external_id &&
+    ((row.source as string | null) ?? "gmail") === "gmail"
   ) {
     try {
       const token = await getValidAccessToken();
       if (token) {
         await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${data.external_id}/modify`,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${row.external_id}/modify`,
           {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -791,20 +812,25 @@ async function markReplied(
 export async function sendEmailReply(
   emailId: string,
   replyText: string,
+  externalIdHint?: string | null,
 ): Promise<ReplyResult> {
   if (!replyText.trim()) return { ok: false, error: "Svar må ikke være tomt" };
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("emails")
-    .select("workspace, from_addr, subject, external_id, source")
-    .eq("id", emailId)
-    .maybeSingle();
+  const cols = "id, workspace, from_addr, subject, external_id, source";
+  // Slå op på DB-id, fald tilbage til det stabile external_id (forældet uuid
+  // efter synk må ikke forhindre et svar).
+  let data = (await supabase.from("emails").select(cols).eq("id", emailId).maybeSingle()).data;
+  if (!data && externalIdHint) {
+    data = (await supabase.from("emails").select(cols).eq("external_id", externalIdHint).maybeSingle()).data;
+  }
 
-  if (!data?.external_id) return { ok: false, error: "Mail ikke fundet" };
+  const externalId = (data?.external_id as string | null) ?? externalIdHint ?? null;
+  if (!externalId) return { ok: false, error: "Mail ikke fundet" };
 
-  const externalId = data.external_id as string;
-  const source = (data.source as string | null) ?? ((data.workspace as string) === "work" ? "outlook" : "gmail");
+  const dbId = (data?.id as string | null) ?? null;
+  const source =
+    (data?.source as string | null) ?? ((data?.workspace as string) === "work" ? "outlook" : "gmail");
 
   try {
     if (source === "gmail") {
@@ -825,8 +851,8 @@ export async function sendEmailReply(
 
       const messageId = getH("Message-Id");
       const fromHeader = getH("From");
-      const toAddr = fromHeader || (data.from_addr as string) || "";
-      const subject = `Re: ${(data.subject as string) ?? ""}`;
+      const toAddr = fromHeader || (data?.from_addr as string | null) || "";
+      const subject = `Re: ${getH("Subject") || (data?.subject as string | null) || ""}`;
 
       // Hent Lasses egen Gmail-signatur og sæt den automatisk på svaret.
       // Sendes som HTML, så signaturens formatering/links/logo bevares.
@@ -864,7 +890,7 @@ export async function sendEmailReply(
         },
       );
       if (sendRes.ok) {
-        await markReplied(supabase, emailId);
+        if (dbId) await markReplied(supabase, dbId);
         return { ok: true };
       }
       return { ok: false, error: "Gmail afvisede besked" };
@@ -883,7 +909,7 @@ export async function sendEmailReply(
         },
       );
       if (replyRes.ok) {
-        await markReplied(supabase, emailId);
+        if (dbId) await markReplied(supabase, dbId);
         return { ok: true };
       }
       return { ok: false, error: "Outlook afvisede besked" };
