@@ -139,6 +139,12 @@ export function RichTextEditor({
   bare?: boolean;
   className?: string;
 }) {
+  // Den seneste HTML editoren SELV har sendt op via onChange. Bruges til at
+  // skelne "ændringen kom fra editoren" fra "en ny ekstern værdi kom ind", så
+  // value-synkroniseringen nedenfor ikke ved et uheld fortryder en netop
+  // foretaget ændring (fx en fed-markering) i et kapløb med React-state.
+  const lastEmittedRef = React.useRef(value);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -162,23 +168,31 @@ export function RichTextEditor({
       // klipper tekst ud af en liste (se serializeListsToPlainText ovenfor).
       clipboardTextSerializer: (slice) => serializeListsToPlainText(slice.content),
     },
-    onUpdate: ({ editor }) => onChange(editor.getHTML()),
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      lastEmittedRef.current = html;
+      onChange(html);
+    },
   });
 
   // Ekstern værdi (fx skift af redigeret opgave/note) skal afspejles i
   // editoren – Tiptap er en imperativ editor-instans, ikke React-state, så
-  // synkroniseringen SKAL ske via setContent (ikke almindelig setState),
-  // og kun når værdien reelt afviger for ikke at nulstille markøren mens
-  // man skriver (onUpdate ovenfor sender jo selv "value" tilbage igen).
-  // "" og Tiptaps egen tomme-doc-HTML ("<p></p>") tæller som ens, ellers
-  // ville en frisk, tom editor (fx et nyt stack-punkt) blive nulstillet
-  // lige efter mount og ødelægge autoFocus.
+  // synkroniseringen SKAL ske via setContent (ikke almindelig setState).
+  //
+  // VIGTIGT: kør KUN setContent når værdien kommer UDEFRA – ikke som ekko af
+  // editorens egen onChange. Ellers kunne et kapløb (value-prop'en halter en
+  // render bagud efter en hurtig ændring) få effekten til at kalde
+  // setContent(GAMMEL værdi) og dermed FORTRYDE en netop lavet fed-markering,
+  // før den blev gemt ("nogle gange gemmer den ikke"). Kom værdien fra editoren
+  // selv (value === sidst udsendte), springer vi over.
   React.useEffect(() => {
     if (!editor) return;
+    if (value === lastEmittedRef.current) return;
     if (isHtmlEmpty(value) && editor.isEmpty) return;
     if (value !== editor.getHTML()) {
       editor.commands.setContent(value, { emitUpdate: false });
     }
+    lastEmittedRef.current = value;
   }, [editor, value]);
 
   if (!editor) return null;
