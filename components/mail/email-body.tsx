@@ -25,21 +25,37 @@ export function EmailBody({
   emailId,
   message,
   tall = false,
+  tone = "default",
 }: {
   emailId: string;
   message: ThreadMessage;
   tall?: boolean;
+  /** "invert" = teksten står på en farvet chat-boble og arver dens tekstfarve. */
+  tone?: "default" | "invert";
 }) {
+  const invert = tone === "invert";
   return (
     <div className="space-y-3">
       {message.bodyHtml ? (
         <HtmlFrame html={message.bodyHtml} tall={tall} />
       ) : message.body ? (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+        <p
+          className={cn(
+            "whitespace-pre-wrap text-sm leading-relaxed",
+            invert ? "text-inherit" : "text-foreground/90",
+          )}
+        >
           {message.body}
         </p>
       ) : (
-        <p className="text-sm italic text-muted-foreground">Ingen brødtekst.</p>
+        <p
+          className={cn(
+            "text-sm italic",
+            invert ? "text-inherit opacity-80" : "text-muted-foreground",
+          )}
+        >
+          Ingen brødtekst.
+        </p>
       )}
 
       {message.attachments.length > 0 && (
@@ -65,28 +81,126 @@ export function EmailBody({
   );
 }
 
+/** Højst så høj må en mail være, før den foldes sammen med "Vis hele mailen". */
+const COLLAPSED_MAX_PX = 420;
+
+/**
+ * Mail-HTML i en sandboxet <iframe> der TILPASSER SIN EGEN HØJDE til indholdet.
+ *
+ * Hvorfor selv-tilpassende? I tråd-visningen (chat-bobler) så en to-linjers
+ * "Tak for svaret" ellers ud som en kæmpe tom kasse, fordi højden var låst til
+ * en fast andel af skærmen. Nu fylder hver besked præcis det, den skal – som i
+ * en beskedtråd. Lange nyhedsbreve foldes sammen med en "Vis hele mailen"-knap.
+ *
+ * Sikkerhed: `allow-scripts` gives ALDRIG, så mailens egen kode kan ikke køre.
+ * `allow-same-origin` gives kun, så VI (siden udenom) kan måle indholdets højde
+ * – uden allow-scripts kan intet inde i rammen udnytte det.
+ */
 function HtmlFrame({ html, tall = false }: { html: string; tall?: boolean }) {
+  const ref = React.useRef<HTMLIFrameElement | null>(null);
+  const [height, setHeight] = React.useState<number | null>(null);
+  const [expanded, setExpanded] = React.useState(false);
+
   const srcDoc = React.useMemo(
     () =>
       `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>
-        body{margin:0;padding:16px;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;background:#ffffff;word-break:break-word;overflow-wrap:anywhere}
+        html,body{margin:0;padding:0}
+        body{padding:14px 16px;font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a;background:#ffffff;word-break:break-word;overflow-wrap:anywhere}
         img,video{max-width:100%;height:auto}
         table{max-width:100%}
         a{color:#1a56db}
+        /* Undgå at et tomt sidste afsnit giver falsk ekstra højde. */
+        body>*:last-child{margin-bottom:0}
       </style></head><body>${html}</body></html>`,
     [html],
   );
+
+  // Mål indholdets højde – ved indlæsning, når billeder falder på plads
+  // (ResizeObserver + et par forsinkede målinger), og når vinduet ændrer bredde.
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let stopped = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let ro: ResizeObserver | null = null;
+
+    const measure = () => {
+      if (stopped) return;
+      try {
+        const doc = el.contentDocument;
+        if (!doc?.body) return;
+        const h = Math.max(
+          doc.body.scrollHeight,
+          doc.documentElement?.scrollHeight ?? 0,
+        );
+        if (h > 0) setHeight(h);
+      } catch {
+        // Kunne ikke måles (fx blokeret) – fald tilbage til en fast højde.
+      }
+    };
+
+    const onLoad = () => {
+      measure();
+      // Billeder/skrifttyper lander typisk lidt efter load.
+      for (const ms of [120, 400, 1200, 2500]) timers.push(setTimeout(measure, ms));
+      try {
+        const body = el.contentDocument?.body;
+        if (body && "ResizeObserver" in window) {
+          ro = new ResizeObserver(measure);
+          ro.observe(body);
+        }
+      } catch {
+        /* uden observer klarer de forsinkede målinger det */
+      }
+    };
+
+    el.addEventListener("load", onLoad);
+    if (el.contentDocument?.readyState === "complete") onLoad();
+    window.addEventListener("resize", measure);
+    return () => {
+      stopped = true;
+      el.removeEventListener("load", onLoad);
+      window.removeEventListener("resize", measure);
+      ro?.disconnect();
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [srcDoc]);
+
+  const maxPx = tall ? Math.round(COLLAPSED_MAX_PX * 1.6) : COLLAPSED_MAX_PX;
+  const measured = height ?? null;
+  const isLong = measured !== null && measured > maxPx + 40;
+  const shown = measured === null ? maxPx : isLong && !expanded ? maxPx : measured;
+
   return (
-    <iframe
-      srcDoc={srcDoc}
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
-      referrerPolicy="no-referrer"
-      title="Mail-indhold"
-      className={cn(
-        "w-full rounded-xl border border-border/60 bg-white",
-        tall ? "h-[60vh] min-h-96" : "h-[42vh] min-h-72",
+    <div className="w-full">
+      <div className="relative">
+        <iframe
+          ref={ref}
+          srcDoc={srcDoc}
+          sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin"
+          referrerPolicy="no-referrer"
+          title="Mail-indhold"
+          // Kunne højden ikke måles, skal rammen kunne rulle indeni – ellers
+          // ville en lang mail blive klippet af uden vej videre.
+          scrolling={measured === null ? "auto" : "no"}
+          style={{ height: shown }}
+          className="w-full rounded-xl border border-border/60 bg-white"
+        />
+        {isLong && !expanded && (
+          // Blød udtoning, så det er tydeligt at der er mere at læse.
+          <div className="pointer-events-none absolute inset-x-px bottom-px h-16 rounded-b-xl bg-gradient-to-t from-white to-transparent" />
+        )}
+      </div>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1.5 text-xs font-medium text-primary hover:underline"
+        >
+          {expanded ? "Vis mindre" : "Vis hele mailen"}
+        </button>
       )}
-    />
+    </div>
   );
 }
 

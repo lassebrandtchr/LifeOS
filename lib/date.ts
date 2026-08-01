@@ -46,6 +46,41 @@ export function dayKey(iso: string | null): string {
 }
 
 /**
+ * Kort dag-skilt til en samtale-tråd (mail-læseren), fx "I dag", "I går",
+ * "tirsdag den 23. juni" – og med årstal, hvis det er et andet år end i år
+ * ("23. juni 2024"). Bevidst kortere end formatDayHeading, fordi det står som
+ * en lille midterstillet etiket mellem beskederne.
+ */
+export function formatThreadDay(iso: string | null): string {
+  const d = toDate(iso);
+  if (!d) return "";
+  const key = dayKey(iso);
+  const now = new Date();
+  const todayKey = now.toLocaleDateString("en-CA", { timeZone: TZ });
+  const yesterday = new Date(now.getTime() - 86_400_000).toLocaleDateString(
+    "en-CA",
+    { timeZone: TZ },
+  );
+  if (key === todayKey) return "I dag";
+  if (key === yesterday) return "I går";
+
+  const sameYear = key.slice(0, 4) === todayKey.slice(0, 4);
+  return sameYear
+    ? d.toLocaleDateString(LOCALE, {
+        timeZone: TZ,
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      })
+    : d.toLocaleDateString(LOCALE, {
+        timeZone: TZ,
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+}
+
+/**
  * Overskrift for en dag, fx "I dag · tirsdag 23. jun." eller
  * "torsdag 25. jun.". Relativ for i dag/i morgen/i går.
  */

@@ -11,7 +11,7 @@ import {
 import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
-import { formatDateTime } from "@/lib/date";
+import { dayKey, formatDateTime, formatThreadDay, formatTime } from "@/lib/date";
 import { Badge } from "@/components/ui/badge";
 import { EmailBody } from "@/components/mail/email-body";
 import { categoryById, MAIL_CATEGORIES } from "@/features/integrations/categorize";
@@ -34,6 +34,30 @@ function senderName(from: string | null): string {
   if (!from) return "Ukendt afsender";
   const m = from.match(/^\s*"?([^"<]+?)"?\s*</);
   return (m ? m[1] : from).trim();
+}
+
+/** "Karl Hansen <k@x.dk>" → "k@x.dk" (til den lille grå adresse-linje). */
+function senderAddress(from: string | null): string {
+  if (!from) return "";
+  const m = from.match(/<([^>]+)>/);
+  return (m ? m[1] : from).trim();
+}
+
+/** Forbogstaver til afsender-cirklen, fx "Karl Hansen" → "KH". */
+function initials(name: string): string {
+  const parts = name.replace(/[^\p{L}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
+/**
+ * Fast farve pr. afsender (samme afsender = altid samme farve), så man kan se
+ * på farven hvem der skriver – som profilfarverne i en beskedtråd.
+ */
+function avatarHue(key: string): number {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+  return h;
 }
 
 /**
@@ -64,6 +88,8 @@ export function MailReaderDrawer({
   const [sending, setSending] = React.useState(false);
   const [thread, setThread] = React.useState<EmailThread | null>(null);
   const [loading, setLoading] = React.useState(true);
+  /** Selve rulle-området med samtalen (bruges til at hoppe til nyeste besked). */
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
 
   // Håndtér-handlinger (arkivér/slet/videresend).
   const [busy, setBusy] = React.useState<null | "archive" | "trash">(null);
@@ -191,6 +217,21 @@ export function MailReaderDrawer({
       active = false;
     };
   }, [mail, readOnly]);
+
+  // Er der flere beskeder i tråden, så vis den NYESTE først (nederst), som i en
+  // beskedtråd – i stedet for at starte ved den ældste. Gentages et par gange,
+  // fordi hver mail først får sin endelige højde, når billederne er hentet.
+  const messageCount = thread?.messages.length ?? 0;
+  React.useEffect(() => {
+    if (loading || messageCount < 2) return;
+    const toBottom = () => {
+      const el = scrollRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    };
+    toBottom();
+    const timers = [200, 700, 1600].map((ms) => setTimeout(toBottom, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [loading, messageCount]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -379,9 +420,12 @@ export function MailReaderDrawer({
             </div>
           </div>
 
-          {/* Hele samtalen (tråd) – hver besked som sit eget kort. Egne svar
-              (fromMe) får en grøn accent, så man tydeligt ser frem-og-tilbag. */}
-          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+          {/* Hele samtalen som en BESKEDTRÅD (à la iMessage): modtagne mails i
+              venstre side med afsenderens farvede forbogstaver, egne svar i
+              højre side i app-farven. Dag-skilte ("I dag", "I går", datoen)
+              deler tråden op, og under hver boble står om den er sendt eller
+              modtaget – og hvornår. */}
+          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-4 sm:px-6">
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="size-4 animate-spin" />
@@ -400,37 +444,116 @@ export function MailReaderDrawer({
                     Kunne ikke hente hele mailen (viser uddrag). Årsag: {thread.loadError}
                   </div>
                 )}
-                {thread.messages.map((m, i) => (
-                <div
-                  key={m.messageId}
-                  className={cn(
-                    "rounded-2xl border p-4",
-                    m.fromMe
-                      ? "border-primary/30 bg-primary/5"
-                      : "border-border/60 bg-secondary/20",
-                  )}
-                >
-                  <div className="mb-2.5 flex items-center justify-between gap-3">
-                    <p className="flex items-center gap-2 text-sm font-medium">
-                      {m.fromMe && <CornerUpLeft className="size-3.5 text-primary" />}
-                      <span className={cn(m.fromMe && "text-primary")}>
-                        {m.fromMe ? "Dig" : senderName(m.from)}
-                      </span>
-                    </p>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatDateTime(m.date)}
-                    </span>
-                  </div>
-                  <EmailBody
-                    emailId={mail.id}
-                    message={m}
-                    tall={thread.messages.length === 1}
-                  />
-                  {i < thread.messages.length - 1 && (
-                    <div className="mt-1 h-px bg-transparent" />
-                  )}
-                </div>
-                ))}
+                {thread.messages.map((m, i) => {
+                  const prev = i > 0 ? thread.messages[i - 1] : null;
+                  // Nyt dag-skilt, når beskeden er fra en anden dag end den forrige.
+                  const newDay = !prev || dayKey(prev.date) !== dayKey(m.date);
+                  // Samme afsender lige før på samme dag → gentag ikke navnet.
+                  const sameSender =
+                    !newDay && prev !== null && prev.fromMe === m.fromMe &&
+                    senderName(prev.from) === senderName(m.from);
+                  const name = m.fromMe ? "Dig" : senderName(m.from);
+                  const address = senderAddress(m.from);
+                  // Kun ren, kort tekst får en FYLDT boble. HTML-mails og
+                  // vedhæftninger får en tonet ramme, så de altid er læsbare.
+                  const solid = !m.bodyHtml && m.attachments.length === 0;
+                  const hue = avatarHue(m.fromMe ? "mig" : address || name);
+
+                  return (
+                    <React.Fragment key={m.messageId}>
+                      {newDay && (
+                        <div className="flex items-center gap-3 py-1">
+                          <span className="h-px flex-1 bg-border/60" />
+                          <span className="rounded-full bg-secondary px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            {formatThreadDay(m.date) || "Ukendt dato"}
+                          </span>
+                          <span className="h-px flex-1 bg-border/60" />
+                        </div>
+                      )}
+
+                      <div
+                        className={cn(
+                          "flex items-end gap-2",
+                          m.fromMe ? "justify-end" : "justify-start",
+                        )}
+                      >
+                        {/* Afsender-cirkel (kun på modtagne, som i en beskedtråd) */}
+                        {!m.fromMe && (
+                          <div
+                            aria-hidden
+                            className={cn(
+                              "flex size-8 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                              sameSender && "invisible",
+                            )}
+                            style={{
+                              backgroundColor: `hsl(${hue} 65% 90%)`,
+                              color: `hsl(${hue} 70% 30%)`,
+                            }}
+                          >
+                            {initials(name)}
+                          </div>
+                        )}
+
+                        <div
+                          className={cn(
+                            "flex min-w-0 flex-col",
+                            m.fromMe ? "items-end" : "items-start",
+                            solid ? "max-w-[85%]" : "w-full max-w-[92%]",
+                          )}
+                        >
+                          {/* Hvem skriver */}
+                          {!sameSender && (
+                            <p
+                              className="mb-1 px-1 text-xs font-semibold text-foreground/80"
+                              title={address || undefined}
+                            >
+                              {name}
+                              {!m.fromMe && address && (
+                                <span className="ml-1.5 font-normal text-muted-foreground">
+                                  {address}
+                                </span>
+                              )}
+                            </p>
+                          )}
+
+                          {/* Selve beskeden */}
+                          <div
+                            className={cn(
+                              "w-full overflow-hidden px-3.5 py-2.5",
+                              m.fromMe
+                                ? "rounded-2xl rounded-br-md"
+                                : "rounded-2xl rounded-bl-md",
+                              solid && m.fromMe && "bg-primary text-primary-foreground",
+                              solid && !m.fromMe && "bg-secondary text-foreground",
+                              !solid && m.fromMe && "border border-primary/30 bg-primary/10",
+                              !solid && !m.fromMe && "border border-border/60 bg-secondary/30",
+                            )}
+                          >
+                            <EmailBody
+                              emailId={mail.id}
+                              message={m}
+                              tall={thread.messages.length === 1}
+                              tone={solid && m.fromMe ? "invert" : "default"}
+                            />
+                          </div>
+
+                          {/* Hvornår – sendt eller modtaget */}
+                          <p className="mt-1 px-1 text-[11px] text-muted-foreground">
+                            {m.fromMe ? (
+                              <span className="inline-flex items-center gap-1">
+                                <CornerUpLeft className="size-3" />
+                                Sendt
+                              </span>
+                            ) : (
+                              "Modtaget"
+                            )}{" "}
+                            {formatTime(m.date) || formatDateTime(m.date)}
+                          </p>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                })}
               </>
             )}
           </div>
