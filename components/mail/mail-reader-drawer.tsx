@@ -16,8 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { EmailBody } from "@/components/mail/email-body";
 import { categoryById, MAIL_CATEGORIES } from "@/features/integrations/categorize";
 import {
-  getEmailThread,
-  getEmailThreadByExternalId,
   sendEmailReply,
   setEmailCategory,
   type EmailThread,
@@ -128,12 +126,31 @@ export function MailReaderDrawer({
     (async () => {
       let t: EmailThread | null = null;
       let clientErr: string | null = null;
+      // Hentes via et almindeligt API-kald (ikke en Server Action), så en fejl
+      // ALTID kommer tilbage som læsbar tekst i stedet for Next' redigerede
+      // "Server Components render"-besked. Se app/api/mail/thread/route.ts.
       try {
-        t = readOnly
-          ? await getEmailThreadByExternalId(mail.externalId ?? mail.id)
-          : await getEmailThread(mail.id, mail.externalId);
+        const res = await fetch("/api/mail/thread", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: mail.id,
+            externalId: mail.externalId ?? null,
+            readOnly,
+          }),
+        });
+        if (!res.ok) {
+          clientErr = `serveren svarede ${res.status} ${res.statusText}`.trim();
+        } else {
+          const json = (await res.json()) as {
+            thread: EmailThread | null;
+            error?: string | null;
+          };
+          t = json.thread;
+          if (json.error) clientErr = json.error;
+        }
       } catch (e) {
-        // Selve server-kaldet fejlede (fx timeout på en langsom database/Gmail).
+        // Selve netværkskaldet fejlede (fx timeout på en langsom database/Gmail).
         t = null;
         clientErr = e instanceof Error ? e.message : "kaldet fejlede (timeout?)";
       }
@@ -162,6 +179,9 @@ export function MailReaderDrawer({
             },
           ],
         };
+      } else if (clientErr && !t.loadError) {
+        // Mailen KOM frem, men noget delvist fejlede (fx et billede) – vis årsagen.
+        t = { ...t, loadError: clientErr };
       }
       if (!active) return;
       setThread(t);
