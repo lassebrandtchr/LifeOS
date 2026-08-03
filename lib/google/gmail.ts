@@ -254,16 +254,29 @@ export async function ensureGmailLabels(
   );
 }
 
+export type GmailTrashResult =
+  | { ok: true }
+  | { ok: false; status: number | null; reason: string };
+
 /** Flyt en besked i papirkurven (kan gendannes i Gmail i 30 dage). */
 export async function trashGmailMessage(
   accessToken: string,
   messageId: string,
-): Promise<boolean> {
-  const res = await fetch(`${API}/messages/${messageId}/trash`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
-  return res.ok;
+): Promise<GmailTrashResult> {
+  try {
+    const res = await fetch(`${API}/messages/${encodeURIComponent(messageId)}/trash`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) return { ok: true };
+    const reason = await res
+      .json()
+      .then((body) => (body?.error?.message as string) ?? "")
+      .catch(() => "");
+    return { ok: false, status: res.status, reason };
+  } catch {
+    return { ok: false, status: null, reason: "Netværksfejl ved forbindelse til Gmail." };
+  }
 }
 
 /**

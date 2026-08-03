@@ -210,16 +210,40 @@ export async function archiveEmail(
 export async function trashEmail(
   emailId: string,
   externalId?: string | null,
-): Promise<{ ok?: true; error?: string }> {
-  const ctx = await gmailContext(emailId, externalId);
-  if ("error" in ctx) return { error: ctx.error };
-  const ok = await trashGmailMessage(ctx.token, ctx.externalId);
-  if (!ok) return { error: "Kunne ikke slette i Gmail." };
-  if (ctx.dbId) {
-    await ctx.a.supabase.from("emails").delete().eq("id", ctx.dbId).eq("user_id", ctx.a.userId);
+): Promise<{ ok?: true; warning?: string; error?: string }> {
+  try {
+    const ctx = await gmailContext(emailId, externalId);
+    if ("error" in ctx) return { error: ctx.error };
+
+    const result = await trashGmailMessage(ctx.token, ctx.externalId);
+    if (!result.ok) {
+      const detail = result.reason ? ` ${result.reason}` : "";
+      if (/insufficient authentication scopes/i.test(result.reason)) {
+        return { error: "Gmail mangler rettighed til at slette mails. Forbind Gmail igen under Indstillinger." };
+      }
+      return {
+        error: result.status
+          ? `Gmail kunne ikke flytte mailen til papirkurven (${result.status}).${detail}`
+          : `Kunne ikke oprette forbindelse til Gmail.${detail}`,
+      };
+    }
+
+    // Gmail er kilden til sandhed: er mailen i papirkurven dér, er handlingen
+    // en succes selv hvis den lokale cache midlertidigt ikke kan ryddes.
+    let warning: string | undefined;
+    if (ctx.dbId) {
+      const { error } = await ctx.a.supabase
+        .from("emails")
+        .delete()
+        .eq("id", ctx.dbId)
+        .eq("user_id", ctx.a.userId);
+      if (error) warning = "Mailen er flyttet til Gmails papirkurv; listen opdateres ved næste synk.";
+    }
+    revalidateMail();
+    return { ok: true, warning };
+  } catch {
+    return { error: "Kunne ikke slette mailen. Prøv igen om et øjeblik." };
   }
-  revalidateMail();
-  return { ok: true };
 }
 
 /**

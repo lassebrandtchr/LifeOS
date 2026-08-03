@@ -120,7 +120,9 @@ export function MailReaderDrawer({
       toast.error((res as { error?: string }).error ?? "Kunne ikke slette.");
       return;
     }
-    toast.success("Mail flyttet til papirkurv ✓");
+    const warning = (res as { warning?: string }).warning;
+    if (warning) toast.warning(warning);
+    else toast.success("Mail flyttet til papirkurv ✓");
     onClose();
     router.refresh();
   }
