@@ -386,3 +386,33 @@ export async function listGmailMessages(
 
   return messages.filter((m): m is GmailMessage => m !== null);
 }
+
+/**
+ * Henter ID'er på HELE den aktuelle Gmail-indbakke uden at hente hver mails
+ * indhold. Bruges som sandhed ved oprydning af den lokale mail-cache: mails
+ * fjernes kun fra AIOS, når de heller ikke længere ligger i Gmail-indbakken.
+ */
+export async function listAllGmailInboxMessageIds(accessToken: string): Promise<string[]> {
+  const ids: string[] = [];
+  let pageToken: string | null = null;
+
+  do {
+    const params = new URLSearchParams({ maxResults: "500", labelIds: "INBOX" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const res = await fetch(`${API}/messages?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const reason = await res
+        .json()
+        .then((body) => (body?.error?.message as string) ?? "")
+        .catch(() => "");
+      throw new GmailApiError(res.status, reason);
+    }
+    const page = await res.json();
+    ids.push(...((page.messages ?? []) as { id: string }[]).map((message) => message.id));
+    pageToken = (page.nextPageToken as string | null | undefined) ?? null;
+  } while (pageToken);
+
+  return ids;
+}

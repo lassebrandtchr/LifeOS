@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listCalendars, listEventsFromCalendar } from "@/lib/google/calendar";
-import { listGmailMessages, GmailApiError } from "@/lib/google/gmail";
+import { listAllGmailInboxMessageIds, listGmailMessages, GmailApiError } from "@/lib/google/gmail";
 import { listOutlookMessages, listOutlookEvents } from "@/lib/microsoft/graph";
 import {
   listNotionDatabases,
@@ -79,6 +79,8 @@ async function writeEmailRowsStable(
   userId: string,
   source: string,
   rows: EmailSyncRow[],
+  /** Komplet liste over udbyderens aktuelle indbakke-id'er, hvis den findes. */
+  presentExternalIds?: Iterable<string>,
 ): Promise<void> {
   const { data: existing } = await supabase
     .from("emails")
@@ -91,7 +93,7 @@ async function writeEmailRowsStable(
     if (r.external_id) idByExt.set(r.external_id as string, r.id as string);
   }
 
-  const incoming = new Set<string>();
+  const incoming = new Set<string>(presentExternalIds ?? []);
   const toInsert: EmailSyncRow[] = [];
   const updates: PromiseLike<unknown>[] = [];
 
@@ -221,8 +223,13 @@ export async function syncGmailCore(
   token: string,
 ): Promise<SyncResult> {
   try {
-    const messages = await listGmailMessages(token, 25);
-    if (messages.length === 0) return { source: "gmail", ok: true, count: 0 };
+    // Vis de samme 100 nyeste mails som mail-siden, men hent ALLE aktuelle
+    // Gmail-id'er separat. Dermed kan vi rydde slettede/arkiverede mails uden
+    // fejlagtigt at fjerne ældre mails, der stadig ligger i indbakken.
+    const [messages, inboxIds] = await Promise.all([
+      listGmailMessages(token, 100),
+      listAllGmailInboxMessageIds(token),
+    ]);
 
     const rows = messages.map((m) => ({
       user_id: userId,
@@ -244,7 +251,9 @@ export async function syncGmailCore(
       }),
     }));
 
-    await writeEmailRowsStable(supabase, userId, "gmail", rows);
+    // Også ved en tom indbakke kaldes writeEmailRowsStable, så gamle cachede
+    // Gmail-mails bliver fjernet fra AIOS i stedet for at blive stående.
+    await writeEmailRowsStable(supabase, userId, "gmail", rows, inboxIds);
     await markSynced(supabase, userId, "gmail");
     return { source: "gmail", ok: true, count: rows.length };
   } catch (e) {
