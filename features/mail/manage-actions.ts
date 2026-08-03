@@ -4,8 +4,15 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/features/integrations/google";
-import { categorizeEmail } from "@/features/integrations/categorize";
 import {
+  categorizeEmail,
+  categoryById,
+  MAIL_CATEGORIES,
+  type MailCategoryId,
+} from "@/features/integrations/categorize";
+import {
+  batchModifyGmailLabels,
+  ensureGmailLabels,
   listGmailFolders,
   listGmailMessagesByLabel,
   modifyGmailLabels,
@@ -32,39 +39,105 @@ async function auth() {
 // ───────────────────────── Kategorisér alle eksisterende ─────────────────────
 
 /**
- * Kategoriserer ALLE eksisterende mails i databasen (ikke kun nye ved synk).
- * Kører reglerne på afsender/emne/uddrag, så ingen mail står ukategoriseret.
- * Rører kun rækker, hvor kategorien reelt ændres.
+ * Kategoriserer alle synkroniserede mails og spejler Gmail-mapper direkte til
+ * Gmail. AIOS ejer kun sine egne "AIOS/..."-labels og rører ikke brugerens
+ * øvrige labels.
  */
 export async function recategorizeAllEmails(): Promise<{
   ok?: true;
   updated?: number;
+  gmailUpdated?: number;
   error?: string;
 }> {
   const a = await auth();
   if (!a) return { error: "Ikke logget ind." };
   try {
-    const { data, error } = await a.supabase
-      .from("emails")
-      .select("id, from_addr, subject, snippet, category")
-      .eq("user_id", a.userId)
-      .limit(1000);
-    if (error || !data) return { error: "Kunne ikke læse mails." };
+    // Supabase begrænser normalt et læs til 1.000 rækker. Paginer derfor, så
+    // knappen lever op til "alle" også for en stor, synkroniseret indbakke.
+    const data: Record<string, unknown>[] = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data: page, error } = await a.supabase
+        .from("emails")
+        .select("id, external_id, source, workspace, from_addr, subject, snippet, category")
+        .eq("user_id", a.userId)
+        .order("id")
+        .range(from, from + pageSize - 1);
+      if (error || !page) return { error: "Kunne ikke læse mails." };
+      data.push(...page);
+      if (page.length < pageSize) break;
+    }
 
-    let updated = 0;
+    const nextById = new Map<string, MailCategoryId>();
+    const gmailByCategory = new Map<MailCategoryId, string[]>();
     for (const r of data) {
       const next = categorizeEmail({
         from: (r.from_addr as string | null) ?? "",
         subject: r.subject as string | null,
         snippet: r.snippet as string | null,
       });
-      if (next && next !== r.category) {
-        await a.supabase.from("emails").update({ category: next }).eq("id", r.id as string);
-        updated++;
+      const id = r.id as string;
+      if (next !== r.category) nextById.set(id, next);
+
+      const isGmail =
+        (r.source as string | null) === "gmail" ||
+        (!(r.source as string | null) && (r.workspace as string | null) !== "work");
+      const externalId = r.external_id as string | null;
+      if (isGmail && externalId) {
+        const ids = gmailByCategory.get(next) ?? [];
+        ids.push(externalId);
+        gmailByCategory.set(next, ids);
       }
     }
+
+    let gmailUpdated = 0;
+    if (gmailByCategory.size > 0) {
+      const token = await getValidAccessToken();
+      if (!token) return { error: "Gmail er ikke forbundet. Forbind Gmail igen og prøv på ny." };
+
+      const categories = [...gmailByCategory.keys()]
+        .map((id) => categoryById(id))
+        .filter((category): category is NonNullable<typeof category> => Boolean(category));
+      // Opret alle AIOS-labels, så en tidligere AIOS-kategori altid kan fjernes
+      // korrekt, også hvis den ikke bruges af en anden mail i dette kørsel.
+      const labelIds = await ensureGmailLabels(token, MAIL_CATEGORIES.map((category) => category.gmailLabel));
+      if (!labelIds) return { error: "Kunne ikke oprette eller læse AIOS-labels i Gmail." };
+
+      const allAiosLabelIds = Object.values(labelIds);
+      for (const category of categories) {
+        const messageIds = [...new Set(gmailByCategory.get(category.id) ?? [])];
+        const targetLabelId = labelIds[category.gmailLabel];
+        if (!targetLabelId) return { error: "Kunne ikke finde den rigtige AIOS-label i Gmail." };
+
+        for (let start = 0; start < messageIds.length; start += 1000) {
+          const batch = messageIds.slice(start, start + 1000);
+          const ok = await batchModifyGmailLabels(token, batch, {
+            add: [targetLabelId],
+            remove: allAiosLabelIds.filter((labelId) => labelId !== targetLabelId),
+          });
+          if (!ok) return { error: "Kunne ikke sætte AIOS-kategorier i Gmail." };
+          gmailUpdated += batch.length;
+        }
+      }
+    }
+
+    const byCategory = new Map<MailCategoryId, string[]>();
+    for (const [id, category] of nextById) {
+      const ids = byCategory.get(category) ?? [];
+      ids.push(id);
+      byCategory.set(category, ids);
+    }
+    for (const [category, ids] of byCategory) {
+      const { error: updateError } = await a.supabase
+        .from("emails")
+        .update({ category })
+        .in("id", ids)
+        .eq("user_id", a.userId);
+      if (updateError) return { error: "Gmail blev opdateret, men appen kunne ikke gemme kategorierne." };
+    }
+
     revalidateMail();
-    return { ok: true, updated };
+    return { ok: true, updated: nextById.size, gmailUpdated };
   } catch {
     return { error: "Kunne ikke kategorisere." };
   }

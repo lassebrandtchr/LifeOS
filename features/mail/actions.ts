@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken } from "@/features/integrations/google";
 import { getValidMicrosoftToken } from "@/features/integrations/microsoft";
-import { getGmailSignature } from "@/lib/google/gmail";
+import { ensureGmailLabels, getGmailSignature, modifyGmailLabels } from "@/lib/google/gmail";
 import { categoryById } from "@/features/integrations/categorize";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -828,23 +828,18 @@ export async function setEmailCategory(
 
   if (error) return { error: error.message };
 
-  // Spejl til den rigtige Gmail-label (best effort – aldrig blokerende).
+  // Spejl til AIOS' egen Gmail-label (best effort – aldrig blokerende).
   if (
-    cat?.gmailLabelId &&
+    cat?.gmailLabel &&
     row.external_id &&
     ((row.source as string | null) ?? "gmail") === "gmail"
   ) {
     try {
       const token = await getValidAccessToken();
       if (token) {
-        await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${row.external_id}/modify`,
-          {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ addLabelIds: [cat.gmailLabelId] }),
-          },
-        );
+        const labels = await ensureGmailLabels(token, [cat.gmailLabel]);
+        const labelId = labels?.[cat.gmailLabel];
+        if (labelId) await modifyGmailLabels(token, row.external_id as string, { add: [labelId] });
       }
     } catch {
       // Label kunne ikke sættes i Gmail – kategorien er stadig gemt i appen.

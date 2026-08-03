@@ -7,7 +7,7 @@
  *   2) hvilken Gmail-label hver kategori spejles til,
  *   3) hvordan en mail kategoriseres ud fra afsender/emne/uddrag.
  *
- * Gmail-labels lægges under et fælles "LifeOS/"-præfiks, så de er nemme at
+ * Gmail-labels lægges under et fælles "AIOS/"-præfiks, så de er nemme at
  * kende (og slette igen) i din Gmail.
  */
 
@@ -20,7 +20,8 @@ export type MailCategoryId =
   | "sikkerhed"
   | "kalender"
   | "reklame"
-  | "nyhedsbrev";
+  | "nyhedsbrev"
+  | "andet";
 
 export type BadgeVariant =
   | "default"
@@ -32,23 +33,24 @@ export type BadgeVariant =
 export type MailCategory = {
   id: MailCategoryId;
   label: string;
-  /** Lasses EGEN Gmail-label, som kategorien spejles til (hans eget system). */
+  /** AIOS' egen Gmail-label, som kategorien spejles til. */
   gmailLabel: string;
-  /** Gmail-label-ID (til API'et). */
+  /** Legacy Gmail-label-ID fra den første version af appen. */
   gmailLabelId: string;
   variant: BadgeVariant;
 };
 
 export const MAIL_CATEGORIES: MailCategory[] = [
-  { id: "kunde", label: "Kunde", gmailLabel: "Arbejde", gmailLabelId: "Label_30", variant: "default" },
-  { id: "bilvurdering", label: "Bilvurdering", gmailLabel: "", gmailLabelId: "", variant: "default" },
-  { id: "faktura", label: "Faktura", gmailLabel: "Kvitteringer/fakturaer", gmailLabelId: "Label_6851695715860460098", variant: "warning" },
-  { id: "levering", label: "Levering", gmailLabel: "Levering", gmailLabelId: "Label_37", variant: "secondary" },
-  { id: "kvittering", label: "Kvittering", gmailLabel: "Ordrebekræftelser", gmailLabelId: "Label_2851542335419264115", variant: "secondary" },
-  { id: "sikkerhed", label: "Sikkerhed", gmailLabel: "", gmailLabelId: "", variant: "warning" },
-  { id: "kalender", label: "Kalender", gmailLabel: "", gmailLabelId: "", variant: "secondary" },
-  { id: "reklame", label: "Reklame", gmailLabel: "", gmailLabelId: "", variant: "outline" },
-  { id: "nyhedsbrev", label: "Nyhedsbrev", gmailLabel: "Nyhedsbrev", gmailLabelId: "Label_29", variant: "outline" },
+  { id: "kunde", label: "Kunde", gmailLabel: "AIOS/Kunde", gmailLabelId: "", variant: "default" },
+  { id: "bilvurdering", label: "Bilvurdering", gmailLabel: "AIOS/Bilvurdering", gmailLabelId: "", variant: "default" },
+  { id: "faktura", label: "Faktura", gmailLabel: "AIOS/Faktura", gmailLabelId: "", variant: "warning" },
+  { id: "levering", label: "Levering", gmailLabel: "AIOS/Levering", gmailLabelId: "", variant: "secondary" },
+  { id: "kvittering", label: "Kvittering", gmailLabel: "AIOS/Kvittering", gmailLabelId: "", variant: "secondary" },
+  { id: "sikkerhed", label: "Sikkerhed", gmailLabel: "AIOS/Sikkerhed", gmailLabelId: "", variant: "warning" },
+  { id: "kalender", label: "Kalender", gmailLabel: "AIOS/Kalender", gmailLabelId: "", variant: "secondary" },
+  { id: "reklame", label: "Reklame", gmailLabel: "AIOS/Reklame", gmailLabelId: "", variant: "outline" },
+  { id: "nyhedsbrev", label: "Nyhedsbrev", gmailLabel: "AIOS/Nyhedsbrev", gmailLabelId: "", variant: "outline" },
+  { id: "andet", label: "Andet", gmailLabel: "AIOS/Andet", gmailLabelId: "", variant: "secondary" },
 ];
 
 export const categoryById = (id: string | null): MailCategory | undefined =>
@@ -68,10 +70,14 @@ const GMAIL_SYSTEM_LABELS: Record<string, MailCategoryId> = {
   CATEGORY_FORUMS: "nyhedsbrev",
 };
 
-/** Reverse-map: Lasses egne label-ID'er (fra MAIL_CATEGORIES) → kategori. */
-const OWN_LABEL_TO_CATEGORY: Record<string, MailCategoryId> = Object.fromEntries(
-  MAIL_CATEGORIES.filter((c) => c.gmailLabelId).map((c) => [c.gmailLabelId, c.id]),
-);
+/** Legacy-labels fra den første version af appen. Nye AIOS-labels får id dynamisk. */
+const OWN_LABEL_TO_CATEGORY: Record<string, MailCategoryId> = {
+  Label_30: "kunde",
+  Label_6851695715860460098: "faktura",
+  Label_37: "levering",
+  Label_2851542335419264115: "kvittering",
+  Label_29: "nyhedsbrev",
+};
 
 /**
  * Kategori ud fra beskedens Gmail-labels. Lasses egne labels vinder over Gmails
@@ -93,14 +99,14 @@ export function categoryFromGmailLabels(labelIds: string[] | undefined): MailCat
  *   1) Gmail-labels (Lasses egne + Gmails systemkategorier) – grundsandhed.
  *   2) Regler på afsender/emne/uddrag (kunde → faktura → levering →
  *      kvittering → nyhedsbrev …). Fx "din ordre er leveret" = levering.
- * Returnerer null hvis intet matcher (så får mailen ingen kategori).
+ * Ukendte mails samles under "Andet", så masse-kategorisering når alle mails.
  */
 export function categorizeEmail(input: {
   from: string;
   subject?: string | null;
   snippet?: string | null;
   labelIds?: string[];
-}): MailCategoryId | null {
+}): MailCategoryId {
   // 1) Labels først – de er sat af Gmail/Lasse selv og er derfor mest præcise.
   const byLabel = categoryFromGmailLabels(input.labelIds);
   if (byLabel) return byLabel;
@@ -131,5 +137,5 @@ export function categorizeEmail(input: {
   if (/\brabat\w*|\budsalg\b|\bspar \d|% ?rabat|black friday|sidste chance|tilbud kun|kampagnepris|\bsale\b|\bdeal\b/.test(text))
     return "reklame";
 
-  return null;
+  return "andet";
 }

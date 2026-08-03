@@ -178,6 +178,82 @@ export async function modifyGmailLabels(
   return res.ok;
 }
 
+/** Tilføj/fjern labels på op til 1.000 beskeder i ét Gmail-kald. */
+export async function batchModifyGmailLabels(
+  accessToken: string,
+  messageIds: string[],
+  change: { add?: string[]; remove?: string[] },
+): Promise<boolean> {
+  if (messageIds.length === 0) return true;
+  const res = await fetch(`${API}/messages/batchModify`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ids: messageIds,
+      addLabelIds: change.add ?? [],
+      removeLabelIds: change.remove ?? [],
+    }),
+  });
+  return res.ok;
+}
+
+/**
+ * Finder eller opretter de labels, AIOS selv ejer. Id'er findes dynamisk, så
+ * handlingen aldrig afhænger af Gmail-id'er fra en bestemt konto.
+ */
+export async function ensureGmailLabels(
+  accessToken: string,
+  names: string[],
+): Promise<Record<string, string> | null> {
+  const uniqueNames = [...new Set(names.filter(Boolean))];
+  if (uniqueNames.length === 0) return {};
+
+  const listRes = await fetch(`${API}/labels`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!listRes.ok) return null;
+
+  const labels = ((await listRes.json()).labels ?? []) as { id: string; name: string }[];
+  const byName = new Map(labels.map((label) => [label.name, label.id]));
+
+  for (const name of uniqueNames) {
+    if (byName.has(name)) continue;
+    const createRes = await fetch(`${API}/labels`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
+    });
+    if (createRes.ok) {
+      const created = (await createRes.json()) as { id: string; name: string };
+      byName.set(created.name, created.id);
+      continue;
+    }
+
+    // Et parallelt kald kan have oprettet labelen først.
+    if (createRes.status === 409) {
+      const retry = await fetch(`${API}/labels`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (retry.ok) {
+        const retryLabels = ((await retry.json()).labels ?? []) as { id: string; name: string }[];
+        const found = retryLabels.find((label) => label.name === name);
+        if (found) {
+          byName.set(found.name, found.id);
+          continue;
+        }
+      }
+    }
+    return null;
+  }
+
+  return Object.fromEntries(
+    uniqueNames.flatMap((name) => {
+      const id = byName.get(name);
+      return id ? [[name, id]] : [];
+    }),
+  );
+}
+
 /** Flyt en besked i papirkurven (kan gendannes i Gmail i 30 dage). */
 export async function trashGmailMessage(
   accessToken: string,
