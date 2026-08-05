@@ -5,6 +5,13 @@ import { FlashToaster } from "@/components/feedback/flash-toaster";
 import { DetailProvider } from "@/components/tasks/detail-context";
 import { requireUser } from "@/lib/auth/dal";
 
+// Alle sider herunder kræver login og henter live data pr. bruger (Supabase,
+// mail, opgaver) – de må ALDRIG forsøges prærenderet statisk under build.
+// Uden dette forsøger `next build` at rendere fx forsiden på build-tidspunktet,
+// hvilket kan hænge/timeoute (60s) hvis et eksternt kald (nyheder, vejr,
+// Supabase) er langsomt/utilgængeligt derfra, og fejle hele deploymentet.
+export const dynamic = "force-dynamic";
+
 /**
  * Layout for hele det "indre" af appen.
  * Alle sider i (app)-gruppen får automatisk sidebar, topbar og mobilmenu.
