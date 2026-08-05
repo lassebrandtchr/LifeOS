@@ -94,6 +94,7 @@ export function CalendarEventDetail({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+        onClick={(e) => e.stopPropagation()}
       >
         <motion.div
           className="flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-card border border-border/70 bg-card shadow-soft-lg"
