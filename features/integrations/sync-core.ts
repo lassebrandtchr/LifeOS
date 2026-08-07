@@ -419,10 +419,15 @@ export async function syncNotionTasksCore(
       workspace: "work" | "private";
       priority: string;
     };
+    // Databaserne er uafhængige af hinanden – hent dem parallelt frem for i
+    // et sekventielt for-loop.
+    const rowsByDb = await Promise.all(
+      relevant.map((db) => queryNotionDatabase(token, db.id)),
+    );
     const mapped: Mapped[] = [];
-    for (const db of relevant) {
-      const rows = await queryNotionDatabase(token, db.id);
-      for (const row of rows) {
+    for (let i = 0; i < relevant.length; i++) {
+      const db = relevant[i];
+      for (const row of rowsByDb[i]) {
         const t = mapRowToTask(row);
         if (!t) continue;
         const parsed = parseTaskInput(t.title);
@@ -447,7 +452,11 @@ export async function syncNotionTasksCore(
     }
 
     const toInsert: Record<string, unknown>[] = [];
-    let updated = 0;
+    // Opdateringerne er uafhængige rækker – kør dem parallelt (samme mønster
+    // som writeEmailRowsStable) i stedet for ét sekventielt DB-kald pr.
+    // opgave. Ved mange opgaver var det sekventielle loop alene nok til at
+    // sende cron-synkens samlede køretid forbi Vercels maxDuration.
+    const updates: PromiseLike<unknown>[] = [];
     for (const t of mapped) {
       const completed_at =
         t.done || t.status === "done" ? new Date().toISOString() : null;
@@ -470,12 +479,13 @@ export async function syncNotionTasksCore(
           update.status = t.status;
           update.completed_at = completed_at;
         }
-        await supabase
-          .from("tasks")
-          .update(update)
-          .eq("id", local.id)
-          .eq("user_id", userId);
-        updated++;
+        updates.push(
+          supabase
+            .from("tasks")
+            .update(update)
+            .eq("id", local.id)
+            .eq("user_id", userId),
+        );
       } else {
         toInsert.push({
           user_id: userId,
@@ -497,6 +507,9 @@ export async function syncNotionTasksCore(
         });
       }
     }
+
+    await Promise.all(updates);
+    const updated = updates.length;
 
     if (toInsert.length > 0) {
       const { error } = await supabase.from("tasks").insert(toInsert);

@@ -66,33 +66,40 @@ export async function runAutomaticSync(): Promise<CronSyncSummary> {
   }
 
   const supabase = createAdminClient();
-  const results: SyncResult[] = [];
 
   try {
     const userIds = await collectConnectedUserIds(supabase);
 
-    for (const userId of userIds) {
-      // Google (Gmail + Kalender)
-      const googleToken = await getValidAccessTokenFor(supabase, userId);
+    // Alle udbydere pr. bruger er UAFHÆNGIGE netværkskald (og brugerne er
+    // uafhængige af hinanden), men blev tidligere kørt ét ad gangen i et
+    // for-loop. Summen af alle de sekventielle kald voksede med mailboks-
+    // /opgave-mængden og ramte til sidst Vercels maxDuration (60s) ->
+    // FUNCTION_INVOCATION_TIMEOUT (504). Kør dem parallelt i stedet, så
+    // den samlede tid er den LANGSOMSTE ene synk, ikke summen af dem alle.
+    const perUser = userIds.map(async (userId) => {
+      const [googleToken, msToken, notionToken] = await Promise.all([
+        getValidAccessTokenFor(supabase, userId),
+        getValidMicrosoftTokenFor(supabase, userId),
+        getNotionTokenFor(supabase, userId),
+      ]);
+
+      const tasks: Promise<SyncResult>[] = [];
       if (googleToken) {
-        results.push(await syncGmailCore(supabase, userId, googleToken));
-        results.push(await syncGoogleCalendarCore(supabase, userId, googleToken));
+        tasks.push(syncGmailCore(supabase, userId, googleToken));
+        tasks.push(syncGoogleCalendarCore(supabase, userId, googleToken));
       }
-
-      // Microsoft (Outlook Mail + Kalender)
-      const msToken = await getValidMicrosoftTokenFor(supabase, userId);
       if (msToken) {
-        results.push(await syncOutlookMailCore(supabase, userId, msToken));
-        results.push(await syncOutlookCalendarCore(supabase, userId, msToken));
+        tasks.push(syncOutlookMailCore(supabase, userId, msToken));
+        tasks.push(syncOutlookCalendarCore(supabase, userId, msToken));
       }
-
-      // Notion (Opgaver + Sider)
-      const notionToken = await getNotionTokenFor(supabase, userId);
       if (notionToken) {
-        results.push(await syncNotionTasksCore(supabase, userId, notionToken));
-        results.push(await syncNotionPagesCore(supabase, userId, notionToken));
+        tasks.push(syncNotionTasksCore(supabase, userId, notionToken));
+        tasks.push(syncNotionPagesCore(supabase, userId, notionToken));
       }
-    }
+      return Promise.all(tasks);
+    });
+
+    const results = (await Promise.all(perUser)).flat();
 
     return { ok: true, ranAt, users: userIds.length, results };
   } catch (e) {
@@ -100,7 +107,7 @@ export async function runAutomaticSync(): Promise<CronSyncSummary> {
       ok: false,
       ranAt,
       users: 0,
-      results,
+      results: [],
       error: e instanceof Error ? e.message : "Ukendt fejl under synk.",
     };
   }
